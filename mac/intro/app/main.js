@@ -31,7 +31,8 @@ function launchTab() {
     child.unref();
   } catch (e) { console.error('[intro] could not open the tab:', e.message); }
 }
-ipcMain.on('covered', launchTab);
+// macOS: the real window is opened only after the overlay has finished and quit (see will-quit), never while it is still on screen
+ipcMain.on('covered', () => {});
 
 function arg(name) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -43,6 +44,8 @@ app.whenReady().then(() => {
   // --freeze=<seconds>: debug aid, pauses the animation at that moment (Esc closes) so it can be compared with the real window
   const freeze = parseFloat(arg('freeze'));
   if (freeze > 0) config.freeze = freeze;
+  // --term=<json>: the user's real terminal (rows, cols, font, size, title bar), measured by the shell function
+  try { const term = arg('term'); if (term) config.term = JSON.parse(term); } catch {}
 
   // character art: the user's own pictures in ~/.whiteboard/characters win.
   // One picture is enough: every missing expression reuses it (motion is procedural).
@@ -100,7 +103,6 @@ app.whenReady().then(() => {
 
   globalShortcut.register('Escape', () => { launchTab(); app.quit(); });
   if (!(freeze > 0)) setTimeout(() => { launchTab(); app.quit(); }, 20000); // safety net (not while frozen for debugging)
-  setTimeout(launchTab, 9000); // even if the renderer never reports, the tab still opens
 });
 
 app.on('window-all-closed', () => app.quit());

@@ -99,8 +99,31 @@
     const A = opts.assets || {};
     const R = rng(20261013);
 
+    // ---------- macOS: measure the user's real terminal grid (font / size / rows / cols differ per Mac) ----------
+    const G = (function gridFrom(term) {
+      try {
+        if (!term || !term.rows || !term.cols) return null;
+        const cv = document.createElement('canvas').getContext('2d');
+        const meas = (font, size) => {
+          cv.font = size + 'px "' + font + '", monospace';
+          const m = cv.measureText('M');
+          return { w: m.width, h: (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) || size * 1.25 };
+        };
+        const tb = term.titlebar || 28, contentH = r.h - tb;
+        const cur = meas(term.font, term.size), wb = meas(term.wbFont, term.wbSize);
+        const lim = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+        // calibrate the browser's font metrics against the terminal that is really on screen:
+        // rows * cellH must fit contentH within one row (same for columns)
+        const kH = lim(cur.h, contentH / (term.rows + 1), contentH / term.rows) / cur.h;
+        const kW = lim(cur.w, r.w / (term.cols + 1), r.w / term.cols) / cur.w;
+        const cellH = wb.h * kH, cellW = wb.w * kW, padL = 6;
+        const g = { tb, cellH, cellW, padL, rows: Math.max(10, Math.floor(contentH / cellH)), cols: Math.max(20, Math.floor((r.w - 2 * padL) / cellW)) };
+        return (isFinite(g.cellH) && isFinite(g.cellW) && g.cellH > 6 && g.cellW > 3) ? g : null;
+      } catch (e) { return null; }
+    })((opts.config || {}).term);
+
     // ---------- geometry (all relative to the real terminal) ----------
-    const TB = clamp(r.h * 0.07, 32, 42);               // tab bar height
+    const TB = G ? G.tb : clamp(r.h * 0.07, 32, 42);    // tab bar height (macOS: the real title bar)
     const c = { x: r.x, y: r.y + TB, w: r.w, h: r.h - TB };
     const S = clamp(Math.min(r.w, r.h) * 0.17, 64, 150); // character size
     const rowH = clamp(c.h / 6, 46, 110);
@@ -184,31 +207,36 @@
     }
 
     // 4. welcome box + text
-    const wx = c.x + 22, wy = c.y + 16, ww = Math.min(c.w - 44, 660), wh = clamp(c.h * 0.26, 96, 140), rr = 14;
+    const wx = G ? c.x + G.padL : c.x + 22, wy = G ? c.y + G.cellH * 0.3 : c.y + 16;
+    const ww = G ? Math.min(c.w - 2 * G.padL, G.cellW * Math.min(G.cols, 72)) : Math.min(c.w - 44, 660);
+    const wh = G ? G.cellH * 5.4 : clamp(c.h * 0.26, 96, 140), rr = 14;
     const welG = el('g', {}, svg);
     const wel = drawable(el('path', { d: wobblyRoundRect(wx, wy, ww, wh, rr, 11, Math.max(1.5, ww * 0.004)),
       fill: 'none', stroke: cfg.accent, 'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, welG));
-    const fs = clamp(ww / 22, 15, 30);
+    const fs = G ? G.cellH * 0.95 : clamp(ww / 22, 15, 30);
+    const wl = G ? G.cellH * 1.25 : 16, wg1 = G ? G.cellH * 2.9 : 44, wg2 = G ? G.cellH * 4.1 : 70;
     const tg = el('g', { 'clip-path': 'url(#ci-text)' }, svg);
-    const star = el('text', { x: wx + 18, y: wy + fs + 16, 'font-size': fs, fill: cfg.accent, 'font-family': "'Permanent Marker', cursive" }, tg); star.textContent = '*';
-    const title = el('text', { x: wx + 18 + fs * 0.9, y: wy + fs + 16, 'font-size': fs, fill: cfg.ink, 'font-family': "'Permanent Marker', cursive" }, tg);
+    const star = el('text', { x: wx + 18, y: wy + fs + wl, 'font-size': fs, fill: cfg.accent, 'font-family': "'Permanent Marker', cursive" }, tg); star.textContent = '*';
+    const title = el('text', { x: wx + 18 + fs * 0.9, y: wy + fs + wl, 'font-size': fs, fill: cfg.ink, 'font-family': "'Permanent Marker', cursive" }, tg);
     title.textContent = 'Welcome to Claude Code!';
-    el('path', { d: `M${wx + 20} ${wy + fs + 44} H${wx + ww * 0.72} M${wx + 20} ${wy + fs + 70} H${wx + ww * 0.45}`, stroke: '#9A9E98', 'stroke-width': 7, 'stroke-linecap': 'round' }, tg);
+    el('path', { d: `M${wx + 20} ${wy + (G ? wg1 : fs + 44)} H${wx + ww * 0.72} M${wx + 20} ${wy + (G ? wg2 : fs + 70)} H${wx + ww * 0.45}`, stroke: '#9A9E98', 'stroke-width': G ? Math.max(4, G.cellH * 0.3) : 7, 'stroke-linecap': 'round' }, tg);
 
     // 5. input box + status line
-    const iy = c.y + c.h - clamp(c.h * 0.2, 70, 110);
+    const iy = G ? c.y + (G.rows - 5 + 0.5) * G.cellH : c.y + c.h - clamp(c.h * 0.2, 70, 110);
+    const IL = G ? 2 * G.cellH : 42;                      // distance between the two input lines
     const inG = el('g', {}, svg);
-    const input = drawable(el('path', { d: `M${c.x + 18} ${iy} H${c.x + c.w - 18} M${c.x + 18} ${iy + 42} H${c.x + c.w - 18}`,
-      fill: 'none', stroke: cfg.ink, 'stroke-width': 3, 'stroke-linecap': 'round' }, inG));
-    const prompt = el('text', { x: c.x + 24, y: iy + 30, 'font-size': 22, fill: cfg.accent, 'font-family': "'Permanent Marker', cursive", opacity: 0 }, inG); prompt.textContent = '>';
-    const status = el('text', { x: c.x + 26, y: iy + 66, 'font-size': 13, fill: '#55594F', 'font-family': "'Courier Prime', monospace", opacity: 0 }, inG);
+    const input = drawable(el('path', { d: `M${c.x + 18} ${iy} H${c.x + c.w - 18} M${c.x + 18} ${iy + IL} H${c.x + c.w - 18}`,
+      fill: 'none', stroke: cfg.ink, 'stroke-width': G ? Math.max(2, G.cellH * 0.12) : 3, 'stroke-linecap': 'round' }, inG));
+    const prompt = el('text', { x: c.x + 24, y: iy + (G ? G.cellH * 1.25 : 30), 'font-size': G ? G.cellH * 0.95 : 22, fill: cfg.accent, 'font-family': "'Permanent Marker', cursive", opacity: 0 }, inG); prompt.textContent = '>';
+    const status = el('text', { x: c.x + 26, y: iy + (G ? IL + G.cellH * 0.95 : 66), 'font-size': G ? G.cellH * 0.8 : 13, fill: '#55594F', 'font-family': "'Courier Prime', monospace", opacity: 0 }, inG);
     status.textContent = '✎ whiteboard · ready';
 
     // 6. tab
     const tab = el('g', { opacity: 1 }, svg);
-    const tabRect = el('rect', { x: r.x + 8, y: r.y + 5, width: 180, height: TB - 9, rx: 7, fill: cfg.accent }, tab);
+    const tabX = G ? r.x + 84 : r.x + 8;
+    const tabRect = el('rect', { x: tabX, y: r.y + 5, width: 180, height: TB - 9, rx: 7, fill: cfg.accent }, tab);
     gsap.set(tabRect, { scaleX: 0, transformOrigin: '0% 50%' });
-    const tabText = el('text', { x: r.x + 24, y: r.y + TB * 0.68, 'font-size': 16, fill: cfg.ink, 'font-family': "'Permanent Marker', cursive", opacity: 0 }, tab);
+    const tabText = el('text', { x: tabX + 16, y: r.y + TB * 0.68, 'font-size': Math.min(16, TB * 0.55), fill: cfg.ink, 'font-family': "'Permanent Marker', cursive", opacity: 0 }, tab);
     tabText.textContent = 'Claude Code';
 
     // ---------- character (HTML so any png works) + the marker it holds ----------
@@ -366,9 +394,9 @@
     jump(T.input - 0.15, wx + ww - 20, wy + fs + 22, i0.x, i0.y, 0.25, S * 0.4);
     followDraw(input, T.input + 0.12, 0.6, 'power1.inOut');
     tl.to([prompt, status], { attr: { opacity: 1 }, duration: 0.25 }, T.input + 0.7);
-    jump(T.tab - 0.05, c.x + c.w - 18, iy + 42, r.x + 30, r.y + TB * 0.55, 0.35, S * 0.9);
+    jump(T.tab - 0.05, c.x + c.w - 18, iy + IL, tabX + 22, r.y + TB * 0.55, 0.35, S * 0.9);
     tl.to(tabRect, { scaleX: 1, duration: 0.3, ease: 'power2.out' }, T.tab + 0.3);
-    tl.to({ v: 0 }, { v: 1, duration: 0.3, ease: 'power2.out', onUpdate() { place(r.x + 30 + 160 * this.progress(), r.y + TB * 0.55); } }, T.tab + 0.3);
+    tl.to({ v: 0 }, { v: 1, duration: 0.3, ease: 'power2.out', onUpdate() { place(tabX + 22 + 160 * this.progress(), r.y + TB * 0.55); } }, T.tab + 0.3);
     tl.to(tabText, { attr: { opacity: 1 }, duration: 0.15 }, T.tab + 0.5);
     // 10 hand-over 10.5-11.8: toss the marker, overlay fades, hop into the input box, wave, vanish
     tl.to(rig, { opacity: 0, duration: 0.25 }, T.out);

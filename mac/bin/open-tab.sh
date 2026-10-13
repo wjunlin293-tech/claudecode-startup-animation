@@ -10,23 +10,18 @@ for a in "$@"; do cmd+=" $(printf '%q' "$a")"; done
 /usr/bin/osascript - "$cmd" <<'APPLESCRIPT'
 on run argv
   tell application "Terminal"
-    if (count of windows) is 0 then
-      set t to do script (item 1 of argv)
-      try
-        set current settings of t to settings set "Claude Whiteboard"
-      end try
-    else
-      -- applying a profile makes Terminal resize the window (its own rows/columns + font):
-      -- remember the window frame and put it back, so the tab matches the window (and the intro)
-      set w to front window
-      set b to bounds of w
-      set t to do script (item 1 of argv) in w
-      try
-        set current settings of t to settings set "Claude Whiteboard"
-      end try
+    -- open a NEW WINDOW exactly over the one you typed `claude` in (no extra tab bar, so the grid matches the intro);
+    -- applying the profile makes Terminal resize it (its own rows/columns + font), so put the frame back afterwards
+    set hasWin to ((count of windows) > 0)
+    if hasWin then set b to bounds of front window
+    set t to do script (item 1 of argv)
+    try
+      set current settings of t to settings set "Claude Whiteboard"
+    end try
+    if hasWin then
       delay 0.2
       try
-        set bounds of w to b
+        set bounds of front window to b
       end try
     end if
     activate
