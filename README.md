@@ -1,3 +1,7 @@
+> **Windows only / 仅支持 Windows**
+> Requires **Windows 10/11 + Windows Terminal (1.21+) + Windows PowerShell 5.1**. It will not work on macOS or Linux.
+> 本项目仅适用于 **Windows**：需要 Windows 10/11、Windows Terminal（1.21 以上）和 Windows PowerShell 5.1，不支持 macOS / Linux。
+
 # Claude Whiteboard 最终版（一个包装全部）
 
 这个包代替之前的三个安装脚本：`install.ps1`、`claude-only.ps1`、`install-intro.ps1`。
