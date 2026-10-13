@@ -2,7 +2,6 @@
 # Claude Whiteboard for macOS (Terminal.app): marker intro + a themed "Claude Whiteboard" tab.
 #   bash mac/setup.sh              install (safe to run again)
 #   bash mac/setup.sh --no-intro   no animation, just the themed tab
-#   bash mac/setup.sh --no-theme   do not switch Claude Code to the Whiteboard Marker theme
 #   bash mac/setup.sh --undo       remove the zsh hook and the intro (fonts and profile are kept)
 # Nothing here needs sudo. Changed files are backed up as <file>.bak-<time> first.
 set -eu
@@ -13,13 +12,11 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 wb="$HOME/.whiteboard"
 undo=0
 nointro=0
-notheme=0
 for a in "$@"; do
   case "$a" in
     --undo) undo=1 ;;
     --no-intro) nointro=1 ;;
-    --no-theme) notheme=1 ;;
-    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
     *) echo "unknown option: $a"; exit 1 ;;
   esac
 done
@@ -79,8 +76,9 @@ if [ "$undo" -eq 0 ]; then
   if [ -f "$repo/claude/whiteboard.json" ]; then
     mkdir -p "$HOME/.claude/themes"
     cp "$repo/claude/whiteboard.json" "$HOME/.claude/themes/whiteboard.json"
-    say "    Claude Code theme file copied"
-    if [ "$notheme" -eq 0 ]; then claude_theme set; else say "    theme not switched (--no-theme): pick it in Claude Code with /theme"; fi
+    say "    Claude Code theme file copied (only the Claude Whiteboard window uses it; your normal terminals keep their colors)"
+    # an earlier version of this script switched the GLOBAL theme - undo that if it is still set
+    claude_theme unset
   fi
 
   # ---------- 3. intro animation ----------

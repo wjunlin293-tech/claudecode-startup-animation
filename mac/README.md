@@ -35,7 +35,7 @@
 3. 安装过程中会弹出一个新的 Terminal 窗口，那是在导入 **Claude Whiteboard** 配置，关掉它就行。
 4. **新开**一个 Terminal 标签页，`cd` 到任意项目，输入 `claude`。
 5. 第一次会弹出"想要控制 Terminal"的授权，点 **好**。如果之前点过"不允许"：系统设置 → 隐私与安全性 → 自动化，把 Terminal / Electron 对 Terminal 的开关打开。
-6. Claude Code 的配色：安装脚本会自动把 Claude Code 切到 **Whiteboard Marker** 主题（改的是 `~/.claude/settings.json` 里的 `theme`，改之前自动备份）。注意这是 Claude Code 的全局设置，在别的终端里用 `claude` 也是这个浅色主题；不想要就加 `--no-theme`，或在 Claude Code 里用 `/theme` 换回去。状态栏脚本是 Windows 专用的，Mac 版没装。
+6. Claude Code 的配色：只有白板窗口里启动的 Claude Code 会用 **Whiteboard Marker** 主题（启动时带 `--settings` 参数指定，不改你的全局设置）。普通终端、`claude-plain` 里的 Claude Code 和终端颜色都保持原样。状态栏脚本是 Windows 专用的，Mac 版没装。
 
 ## 常用命令
 
@@ -78,4 +78,4 @@ bash mac/check.sh
 ```
 bash mac/setup.sh --undo
 ```
-会清掉 `~/.zshrc` 里的钩子并删除动画程序。字体和 Terminal 配置会留下，不影响别的东西。想删配置：Terminal → 设置 → 描述文件 → Claude Whiteboard → 点 `-`。
+会清掉 `~/.zshrc` 里的钩子并删除动画程序（如果早先的版本改过全局主题，也一并还原）。字体和 Terminal 配置会留下，不影响别的东西。想删配置：Terminal → 设置 → 描述文件 → Claude Whiteboard → 点 `-`。
