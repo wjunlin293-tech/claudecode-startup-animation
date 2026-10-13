@@ -12,12 +12,23 @@ on run argv
   tell application "Terminal"
     if (count of windows) is 0 then
       set t to do script (item 1 of argv)
+      try
+        set current settings of t to settings set "Claude Whiteboard"
+      end try
     else
-      set t to do script (item 1 of argv) in front window
+      -- applying a profile makes Terminal resize the window (its own rows/columns + font):
+      -- remember the window frame and put it back, so the tab matches the window (and the intro)
+      set w to front window
+      set b to bounds of w
+      set t to do script (item 1 of argv) in w
+      try
+        set current settings of t to settings set "Claude Whiteboard"
+      end try
+      delay 0.2
+      try
+        set bounds of w to b
+      end try
     end if
-    try
-      set current settings of t to settings set "Claude Whiteboard"
-    end try
     activate
   end tell
 end run
