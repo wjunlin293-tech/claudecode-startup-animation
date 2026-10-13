@@ -124,6 +124,9 @@
 
     // ---------- geometry (all relative to the real terminal) ----------
     const TB = G ? G.tb : clamp(r.h * 0.07, 32, 42);    // tab bar height (macOS: the real title bar)
+    // macOS: measured on a real Mac, the drawn UI sat one text row too low -> shift it up by `gridDy` rows (default -1).
+    // Adjustable per machine in ~/.whiteboard/intro-config.json ("gridDy": -1, -0.5, 0, ...)
+    const gy = G ? G.cellH * (cfg.gridDy != null ? +cfg.gridDy : -1) : 0;
     const c = { x: r.x, y: r.y + TB, w: r.w, h: r.h - TB };
     const S = clamp(Math.min(r.w, r.h) * 0.17, 64, 150); // character size
     const rowH = clamp(c.h / 6, 46, 110);
@@ -147,9 +150,9 @@
     // debug (CLAUDE_INTRO_FREEZE): draw the grid this layout assumes, so it can be compared with the real text underneath
     if ((opts.config || {}).freeze > 0 && G) {
       const dbg = el('g', { opacity: 0.6 }, svg);
-      for (let i = 0; i <= G.rows; i++) el('line', { x1: r.x, x2: r.x + r.w, y1: c.y + i * G.cellH, y2: c.y + i * G.cellH, stroke: '#e00', 'stroke-width': i % 5 ? 0.5 : 1.2 }, dbg);
-      for (let k = 0; k <= G.cols; k += 10) el('line', { x1: r.x + G.padL + k * G.cellW, x2: r.x + G.padL + k * G.cellW, y1: c.y, y2: c.y + c.h, stroke: '#e00', 'stroke-width': 1 }, dbg);
-      el('line', { x1: r.x, x2: r.x + r.w, y1: c.y, y2: c.y, stroke: '#00f', 'stroke-width': 1.5 }, dbg);   // blue = where the text area is assumed to start
+      for (let i = 0; i <= G.rows; i++) el('line', { x1: r.x, x2: r.x + r.w, y1: c.y + gy + i * G.cellH, y2: c.y + gy + i * G.cellH, stroke: '#e00', 'stroke-width': i % 5 ? 0.5 : 1.2 }, dbg);
+      for (let k = 0; k <= G.cols; k += 10) el('line', { x1: r.x + G.padL + k * G.cellW, x2: r.x + G.padL + k * G.cellW, y1: c.y + gy, y2: c.y + gy + c.h, stroke: '#e00', 'stroke-width': 1 }, dbg);
+      el('line', { x1: r.x, x2: r.x + r.w, y1: c.y + gy, y2: c.y + gy, stroke: '#00f', 'stroke-width': 1.5 }, dbg);   // blue = where the text area is assumed to start
       const lab = el('text', { x: r.x + 12, y: c.y + c.h * 0.5, 'font-size': 12, fill: '#e00', 'font-family': 'monospace' }, dbg);
       lab.textContent = JSON.stringify({ rows: G.rows, cols: G.cols, cellW: +G.cellW.toFixed(2), cellH: +G.cellH.toFixed(2), titlebar: G.tb, rect: [r.x, r.y, r.w, r.h], term: (opts.config || {}).term });
     }
@@ -217,7 +220,7 @@
     }
 
     // 4. welcome box + text
-    const wx = G ? c.x + G.padL : c.x + 22, wy = G ? c.y + G.cellH * 0.3 : c.y + 16;
+    const wx = G ? c.x + G.padL : c.x + 22, wy = G ? c.y + G.cellH * 0.3 + gy : c.y + 16;
     const ww = G ? Math.min(c.w - 2 * G.padL, G.cellW * Math.min(G.cols, 72)) : Math.min(c.w - 44, 660);
     const wh = G ? G.cellH * 5.4 : clamp(c.h * 0.26, 96, 140), rr = 14;
     const welG = el('g', {}, svg);
@@ -232,7 +235,7 @@
     el('path', { d: `M${wx + 20} ${wy + (G ? wg1 : fs + 44)} H${wx + ww * 0.72} M${wx + 20} ${wy + (G ? wg2 : fs + 70)} H${wx + ww * 0.45}`, stroke: '#9A9E98', 'stroke-width': G ? Math.max(4, G.cellH * 0.3) : 7, 'stroke-linecap': 'round' }, tg);
 
     // 5. input box + status line
-    const iy = G ? c.y + (G.rows - 5 + 0.5) * G.cellH : c.y + c.h - clamp(c.h * 0.2, 70, 110);
+    const iy = G ? c.y + (G.rows - 5 + 0.5) * G.cellH + gy : c.y + c.h - clamp(c.h * 0.2, 70, 110);
     const IL = G ? 2 * G.cellH : 42;                      // distance between the two input lines
     const inG = el('g', {}, svg);
     const input = drawable(el('path', { d: `M${c.x + 18} ${iy} H${c.x + c.w - 18} M${c.x + 18} ${iy + IL} H${c.x + c.w - 18}`,
