@@ -13,6 +13,8 @@ row "$([ -x "$wb/open-tab.sh" ] && [ -x "$wb/claude-wb.sh" ] && [ -f "$wb/shell.
 prof=1
 defaults read com.apple.Terminal "Window Settings" 2>/dev/null | grep -q '"Claude Whiteboard"' && prof=0
 row "$prof" "3 Terminal profile 'Claude Whiteboard'" "run mac/setup.sh (it opens the .terminal file)"
+bg=$(osascript -e 'tell application "Terminal" to get background color of settings set "Claude Whiteboard"' 2>/dev/null | awk -F', *' '{print $1}')
+row "$([ -n "$bg" ] && [ "${bg:-0}" -gt 55000 ] 2>/dev/null; echo $?)" "3b profile background is the light whiteboard color (got: ${bg:-none})" "run mac/setup.sh again (it sets the colors through Terminal)"
 row "$(grep -q 'whiteboard-claude' "$HOME/.zshrc" 2>/dev/null; echo $?)" "4 ~/.zshrc hook" "run mac/setup.sh"
 if [ -x "$wb/intro/app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron" ]; then
   row 0 "5 intro animation installed" ""

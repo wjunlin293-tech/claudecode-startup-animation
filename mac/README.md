@@ -68,6 +68,7 @@ bash mac/check.sh
 | 输入 `claude` 没反应 | 新开一个标签页（旧标签页还是旧的命令）；运行 `bash mac/check.sh` |
 | 动画播了，但没有开白板标签页 | 多半是"自动化"授权被拒，见上面第 5 步 |
 | 没有动画，直接开了标签页 | 没装 Node.js，或 `npm install` 失败：`brew install node` 后重新运行 `bash mac/setup.sh` |
+| 白板窗口不是白底（还是系统的颜色） | 重新运行 `bash mac/setup.sh`（它会用 Terminal 自己的接口把背景色、文字色、字体设上）；再用 `bash mac/check.sh` 看 3b 项 |
 | 标签页不是白底 | `check.sh` 的第 3 项；在 Terminal → 设置 → 描述文件里看有没有 Claude Whiteboard，没有就双击 `mac/terminal/Claude-Whiteboard.terminal` |
 | 吉祥物显示得很怪 | Terminal → 设置 → 描述文件 → Claude Whiteboard → 文本，把字体换成 Menlo 或 SF Mono，框线会变成系统的 |
 | 动画画的框和真实窗口差一点 | 改 `~/.whiteboard/intro-config.json` 里的 `"gridDy"`（单位是行，默认 0；负数上移、正数下移，如 `-0.5`、`1`），再用 `CLAUDE_INTRO_FREEZE=10.4 claude` 对照红色网格 |

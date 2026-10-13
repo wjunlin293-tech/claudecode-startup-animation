@@ -22,6 +22,32 @@ for a in "$@"; do
 done
 say() { echo "[whiteboard] $*"; }
 
+# The .terminal file carries the full palette, but Terminal may ignore parts of it; the colors that matter
+# (white board, ink, cursor, font) are therefore also set through Terminal's own scripting interface. Safe to repeat.
+fix_profile() {
+  /usr/bin/osascript >/dev/null 2>&1 <<'APPLESCRIPT' || say "    WARNING: could not set the profile colors (macOS may be asking Terminal for permission, allow it and run setup again)"
+tell application "Terminal"
+  set s to missing value
+  repeat 10 times
+    try
+      set s to settings set "Claude Whiteboard"
+      exit repeat
+    end try
+    delay 0.5
+  end repeat
+  if s is missing value then set s to (make new settings set with properties {name:"Claude Whiteboard"})
+  set background color of s to {60652, 61166, 60395}
+  set normal text color of s to {8738, 8738, 8738}
+  set bold text color of s to {8738, 8738, 8738}
+  set cursor color of s to {58853, 25957, 15420}
+  try
+    set font name of s to "WhiteboardMono-Regular"
+    set font size of s to 13
+  end try
+end tell
+APPLESCRIPT
+}
+
 # set / remove "theme": "custom:whiteboard" in ~/.claude/settings.json (JSON edited with the JavaScript that ships with macOS)
 claude_theme() { # claude_theme set|unset
   local f="$HOME/.claude/settings.json" js out
@@ -109,8 +135,10 @@ if [ "$undo" -eq 0 ]; then
   else
     open "$here/terminal/Claude-Whiteboard.terminal"
     say "4/5 Terminal profile imported - a new Terminal window with it just opened, you can close that window"
-    sleep 1
+    sleep 2
   fi
+  fix_profile
+  say "    profile colors and font set (white board, dark ink, orange cursor)"
 fi
 
 # ---------- 5. ~/.zshrc hook ----------
