@@ -85,9 +85,11 @@ app.whenReady().then(() => {
     x: b.x, y: b.y, width: b.width, height: b.height,
     transparent: true, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
     alwaysOnTop: true, skipTaskbar: true, focusable: false, hasShadow: false, show: false,
+    enableLargerThanScreen: true,   // macOS: otherwise the window is pushed below the menu bar and the whole drawing shifts down by its height
     backgroundColor: '#00000000',
     webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js') },
   });
+  win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });   // exact placement, menu bar included
   win.setAlwaysOnTop(true, 'screen-saver');
   if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true);

@@ -124,9 +124,8 @@
 
     // ---------- geometry (all relative to the real terminal) ----------
     const TB = G ? G.tb : clamp(r.h * 0.07, 32, 42);    // tab bar height (macOS: the real title bar)
-    // macOS: measured on a real Mac, the drawn UI sat one text row too low -> shift it up by `gridDy` rows (default -1).
-    // Adjustable per machine in ~/.whiteboard/intro-config.json ("gridDy": -1, -0.5, 0, ...)
-    const gy = G ? G.cellH * (cfg.gridDy != null ? +cfg.gridDy : -1) : 0;
+    // optional fine-tuning in rows (~/.whiteboard/intro-config.json: "gridDy": -0.5 moves the drawn UI up half a row); default 0
+    const gy = G ? G.cellH * (cfg.gridDy != null ? +cfg.gridDy : 0) : 0;
     const c = { x: r.x, y: r.y + TB, w: r.w, h: r.h - TB };
     const S = clamp(Math.min(r.w, r.h) * 0.17, 64, 150); // character size
     const rowH = clamp(c.h / 6, 46, 110);
