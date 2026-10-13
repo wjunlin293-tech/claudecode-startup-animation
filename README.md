@@ -1,6 +1,6 @@
-> **Windows only / 仅支持 Windows**
-> Requires **Windows 10/11 + Windows Terminal (1.21+) + Windows PowerShell 5.1**. It will not work on macOS or Linux.
-> 本项目仅适用于 **Windows**：需要 Windows 10/11、Windows Terminal（1.21 以上）和 Windows PowerShell 5.1，不支持 macOS / Linux。
+> **Windows 版在本目录；Mac（Terminal.app）版在 [`mac/`](mac/README.md)。**
+> The scripts in this folder are **Windows only** (Windows 10/11 + Windows Terminal 1.21+ + Windows PowerShell 5.1). macOS users: see [`mac/`](mac/README.md) (untested on a real Mac).
+> 本目录的脚本仅适用于 **Windows**（Windows 10/11、Windows Terminal 1.21 以上、Windows PowerShell 5.1）。Mac 用户请看 [`mac/`](mac/README.md)（尚未在真实 Mac 上验证）。
 
 # Claude Whiteboard 最终版（一个包装全部）
 
