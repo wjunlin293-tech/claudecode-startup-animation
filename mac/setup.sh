@@ -2,6 +2,7 @@
 # Claude Whiteboard for macOS (Terminal.app): marker intro + a themed "Claude Whiteboard" tab.
 #   bash mac/setup.sh              install (safe to run again)
 #   bash mac/setup.sh --no-intro   no animation, just the themed tab
+#   bash mac/setup.sh --no-theme   do not switch Claude Code to the Whiteboard Marker theme
 #   bash mac/setup.sh --undo       remove the zsh hook and the intro (fonts and profile are kept)
 # Nothing here needs sudo. Changed files are backed up as <file>.bak-<time> first.
 set -eu
@@ -12,15 +13,46 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 wb="$HOME/.whiteboard"
 undo=0
 nointro=0
+notheme=0
 for a in "$@"; do
   case "$a" in
     --undo) undo=1 ;;
     --no-intro) nointro=1 ;;
-    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
+    --no-theme) notheme=1 ;;
+    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
     *) echo "unknown option: $a"; exit 1 ;;
   esac
 done
 say() { echo "[whiteboard] $*"; }
+
+# set / remove "theme": "custom:whiteboard" in ~/.claude/settings.json (JSON edited with the JavaScript that ships with macOS)
+claude_theme() { # claude_theme set|unset
+  local f="$HOME/.claude/settings.json" js out
+  js="$(mktemp -t wbtheme).js"
+  cat > "$js" <<'JXA'
+function run(argv) {
+  ObjC.import('Foundation');
+  var p = argv[0], mode = argv[1], fm = $.NSFileManager.defaultManager, obj = {};
+  if (fm.fileExistsAtPath(p)) {
+    var s = ObjC.unwrap($.NSString.stringWithContentsOfFileEncodingError(p, $.NSUTF8StringEncoding, null));
+    if (s && s.trim()) obj = JSON.parse(s);
+  }
+  if (mode === 'set') { if (obj.theme === 'custom:whiteboard') return 'already'; obj.theme = 'custom:whiteboard'; }
+  else { if (obj.theme !== 'custom:whiteboard') return 'untouched'; delete obj.theme; }
+  $(JSON.stringify(obj, null, 2) + '\n').writeToFileAtomicallyEncodingError(p, true, $.NSUTF8StringEncoding, null);
+  return 'ok';
+}
+JXA
+  mkdir -p "$HOME/.claude"
+  [ -f "$f" ] && cp "$f" "$f.bak-$stamp"
+  out="$(osascript -l JavaScript "$js" "$f" "$1" 2>&1)" || { say "could not edit ~/.claude/settings.json ($out) - in Claude Code type /theme and pick Whiteboard Marker"; rm -f "$js"; return 0; }
+  rm -f "$js"
+  case "$out" in
+    ok) [ "$1" = set ] && say "    Claude Code theme switched to Whiteboard Marker (backup ~/.claude/settings.json.bak-$stamp)" || say "    Claude Code theme setting removed" ;;
+    already) say "    Claude Code theme already Whiteboard Marker" ;;
+    *) : ;;
+  esac
+}
 
 if [ "$(uname)" != "Darwin" ]; then echo "This installer is for macOS only."; exit 1; fi
 if [ ! -d "/System/Applications/Utilities/Terminal.app" ] && [ ! -d "/Applications/Utilities/Terminal.app" ]; then
@@ -47,7 +79,8 @@ if [ "$undo" -eq 0 ]; then
   if [ -f "$repo/claude/whiteboard.json" ]; then
     mkdir -p "$HOME/.claude/themes"
     cp "$repo/claude/whiteboard.json" "$HOME/.claude/themes/whiteboard.json"
-    say "    Claude Code theme copied (pick it with /theme -> Whiteboard Marker)"
+    say "    Claude Code theme file copied"
+    if [ "$notheme" -eq 0 ]; then claude_theme set; else say "    theme not switched (--no-theme): pick it in Claude Code with /theme"; fi
   fi
 
   # ---------- 3. intro animation ----------
@@ -102,6 +135,7 @@ if [ "$undo" -eq 0 ]; then
   say "5/5 ~/.zshrc updated (backup .bak-$stamp)"
 else
   rm -rf "$wb/intro"
+  claude_theme unset
   say "5/5 ~/.zshrc cleaned and the intro removed (backup .bak-$stamp)"
   say "The 'Claude Whiteboard' profile and the font are kept (harmless). To delete the profile: Terminal > Settings > Profiles > Claude Whiteboard > '-'."
 fi
