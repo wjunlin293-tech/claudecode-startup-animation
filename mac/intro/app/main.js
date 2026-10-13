@@ -40,6 +40,9 @@ function arg(name) {
 
 app.whenReady().then(() => {
   const config = Object.assign({}, readJSON(path.join(__dirname, 'config.json')), readJSON(path.join(userDir, 'intro-config.json')));
+  // --freeze=<seconds>: debug aid, pauses the animation at that moment (Esc closes) so it can be compared with the real window
+  const freeze = parseFloat(arg('freeze'));
+  if (freeze > 0) config.freeze = freeze;
 
   // character art: the user's own pictures in ~/.whiteboard/characters win.
   // One picture is enough: every missing expression reuses it (motion is procedural).
@@ -96,7 +99,7 @@ app.whenReady().then(() => {
   }
 
   globalShortcut.register('Escape', () => { launchTab(); app.quit(); });
-  setTimeout(() => { launchTab(); app.quit(); }, 20000); // safety net
+  if (!(freeze > 0)) setTimeout(() => { launchTab(); app.quit(); }, 20000); // safety net (not while frozen for debugging)
   setTimeout(launchTab, 9000); // even if the renderer never reports, the tab still opens
 });
 

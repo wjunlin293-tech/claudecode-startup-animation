@@ -30,7 +30,9 @@ claude() {
     rect=$(print -r -- "$bounds" | awk -F', *' 'NF==4 { printf "%d,%d,%d,%d", $1, $2, $3-$1, $4-$2 }')
     if [[ -n "$rect" ]]; then
       # GUI overlay in the background; it opens the real tab itself once the window is painted over
-      "$electron" "$app" "--rect=$rect" --wt "$HOME/.whiteboard/open-tab.sh" "$PWD" "$@" >/dev/null 2>&1 &!
+      local freeze=""
+      [[ -n "$CLAUDE_INTRO_FREEZE" ]] && freeze="--freeze=$CLAUDE_INTRO_FREEZE"   # debug: hold the animation at that second
+      "$electron" "$app" "--rect=$rect" $freeze --wt "$HOME/.whiteboard/open-tab.sh" "$PWD" "$@" >/dev/null 2>&1 &!
       return
     fi
   fi

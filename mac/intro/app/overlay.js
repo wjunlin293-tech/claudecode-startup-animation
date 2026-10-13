@@ -18,6 +18,7 @@
     const t0 = performance.now();
     tl.eventCallback('onComplete', () => { console.log('[intro] done in ' + ((performance.now() - t0) / 1000).toFixed(1) + 's, avg fps ' + (frames / ((performance.now() - t0) / 1000)).toFixed(0)); window.close(); });
     tl.play(0);
+    if (cfg.freeze > 0) tl.call(() => tl.pause(), null, cfg.freeze); // debug: hold this frame until Esc
   };
   const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
   Promise.race([fontsReady, new Promise((r) => setTimeout(r, 300))]).then(go);
