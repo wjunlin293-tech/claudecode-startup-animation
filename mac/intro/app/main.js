@@ -102,6 +102,7 @@ app.whenReady().then(() => {
   }
 
   globalShortcut.register('Escape', () => { launchTab(); app.quit(); });
+  if (freeze > 0) setTimeout(launchTab, 3000);   // debug: open the real window early so the frozen overlay sits right over it
   if (!(freeze > 0)) setTimeout(() => { launchTab(); app.quit(); }, 20000); // safety net (not while frozen for debugging)
 });
 

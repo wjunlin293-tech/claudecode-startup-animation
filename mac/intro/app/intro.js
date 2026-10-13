@@ -144,6 +144,16 @@
 
     const art = el('g', { filter: 'url(#ci-marker)' }, svg);
 
+    // debug (CLAUDE_INTRO_FREEZE): draw the grid this layout assumes, so it can be compared with the real text underneath
+    if ((opts.config || {}).freeze > 0 && G) {
+      const dbg = el('g', { opacity: 0.6 }, svg);
+      for (let i = 0; i <= G.rows; i++) el('line', { x1: r.x, x2: r.x + r.w, y1: c.y + i * G.cellH, y2: c.y + i * G.cellH, stroke: '#e00', 'stroke-width': i % 5 ? 0.5 : 1.2 }, dbg);
+      for (let k = 0; k <= G.cols; k += 10) el('line', { x1: r.x + G.padL + k * G.cellW, x2: r.x + G.padL + k * G.cellW, y1: c.y, y2: c.y + c.h, stroke: '#e00', 'stroke-width': 1 }, dbg);
+      el('line', { x1: r.x, x2: r.x + r.w, y1: c.y, y2: c.y, stroke: '#00f', 'stroke-width': 1.5 }, dbg);   // blue = where the text area is assumed to start
+      const lab = el('text', { x: r.x + 12, y: c.y + c.h * 0.5, 'font-size': 12, fill: '#e00', 'font-family': 'monospace' }, dbg);
+      lab.textContent = JSON.stringify({ rows: G.rows, cols: G.cols, cellW: +G.cellW.toFixed(2), cellH: +G.cellH.toFixed(2), titlebar: G.tb, rect: [r.x, r.y, r.w, r.h], term: (opts.config || {}).term });
+    }
+
     // 1. trace around the window
     const trace = drawable(el('rect', { x: r.x - 8, y: r.y - 8, width: r.w + 16, height: r.h + 16, rx: 12,
       fill: 'none', stroke: cfg.accent, 'stroke-width': 5, 'stroke-linecap': 'round' }, art));
