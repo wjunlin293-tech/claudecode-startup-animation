@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="assets/demo.gif" alt="claude 启动动画 / startup animation" width="720">
+</p>
+<p align="center"><a href="assets/demo.mp4">▶ 高清视频 / Full-quality video</a></p>
+
 > **Windows 版在本目录；Mac（Terminal.app）版在 [`mac/`](mac/README.md)。**
 > The scripts in this folder are **Windows only** (Windows 10/11 + Windows Terminal 1.21+ + Windows PowerShell 5.1). macOS users: see [`mac/`](mac/README.md) (untested on a real Mac).
 > 本目录的脚本仅适用于 **Windows**（Windows 10/11、Windows Terminal 1.21 以上、Windows PowerShell 5.1）。Mac 用户请看 [`mac/`](mac/README.md)（尚未在真实 Mac 上验证）。
