@@ -1,0 +1,96 @@
+// Electron main: one transparent, always-on-top, click-through window over the display
+// that holds the terminal. Plays the intro once, then quits. Esc skips.
+const { app, BrowserWindow, screen, globalShortcut, ipcMain } = require('electron');
+const { spawn } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+const { pathToFileURL } = require('url');
+
+if (!app.requestSingleInstanceLock()) { app.quit(); }
+
+const userDir = path.join(app.getPath('home'), '.whiteboard');
+function readJSON(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
+
+// everything after --wt is handed to wt.exe once the terminal is fully painted over
+const wtIdx = process.argv.indexOf('--wt');
+const wtArgs = wtIdx >= 0 ? process.argv.slice(wtIdx + 1) : [];
+let launched = false;
+function launchTab() {
+  if (launched || !wtArgs.length) return;
+  launched = true;
+  try {
+    const child = spawn('wt.exe', wtArgs, { detached: true, stdio: 'ignore' });
+    child.on('error', (e) => console.error('[intro] could not start wt.exe:', e.message));
+    child.unref();
+  } catch (e) { console.error('[intro] could not start wt.exe:', e.message); }
+}
+ipcMain.on('covered', launchTab);
+
+function arg(name) {
+  const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
+  return hit ? hit.slice(name.length + 3) : null;
+}
+
+app.whenReady().then(() => {
+  const config = Object.assign({}, readJSON(path.join(__dirname, 'config.json')), readJSON(path.join(userDir, 'intro-config.json')));
+
+  // character art: the user's own pictures in ~/.whiteboard/characters win.
+  // One picture is enough: every missing expression reuses it (motion is procedural).
+  const ownDir = path.join(userDir, 'characters');
+  const own = {};
+  for (const k of ['surprised', 'focused', 'happy', 'wink']) {
+    const p = path.join(ownDir, `${k}.png`);
+    if (fs.existsSync(p)) own[k] = p;
+  }
+  let ownAny = own.happy || own.focused || own.surprised || own.wink;
+  if (!ownAny && fs.existsSync(ownDir)) {
+    const pics = fs.readdirSync(ownDir).filter((f) => /\.(png|webp|gif)$/i.test(f)).sort();
+    if (pics.length) ownAny = path.join(ownDir, pics[0]);
+  }
+  const assets = {};
+  for (const k of ['surprised', 'focused', 'happy', 'wink']) {
+    const bundled = path.join(__dirname, 'characters', `${k}.png`);
+    const pick = own[k] || ownAny || (fs.existsSync(bundled) ? bundled : null);
+    if (pick) assets[k] = pathToFileURL(pick).href;
+  }
+
+  // terminal rect: physical pixels from PowerShell (--rect=x,y,w,h); --demo = fake rect
+  let phys;
+  const raw = arg('rect');
+  if (raw) {
+    const [x, y, w, h] = raw.split(',').map(Number);
+    phys = { x, y, width: w, height: h };
+  } else {
+    const wa = screen.getPrimaryDisplay().workArea;
+    phys = { x: wa.x + wa.width * 0.2, y: wa.y + wa.height * 0.18, width: wa.width * 0.6, height: wa.height * 0.64 };
+  }
+  const dip = (process.platform === 'win32' && raw) ? screen.screenToDipRect(null, phys) : phys;
+  const display = screen.getDisplayMatching({ x: Math.round(dip.x), y: Math.round(dip.y), width: Math.round(dip.width), height: Math.round(dip.height) });
+  const b = display.bounds;
+
+  const win = new BrowserWindow({
+    x: b.x, y: b.y, width: b.width, height: b.height,
+    transparent: true, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
+    alwaysOnTop: true, skipTaskbar: true, focusable: false, hasShadow: false, show: false,
+    backgroundColor: '#00000000',
+    webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, preload: path.join(__dirname, 'preload.js') },
+  });
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setIgnoreMouseEvents(true);
+  const rect = { x: dip.x - b.x, y: dip.y - b.y, w: dip.width, h: dip.height };
+  win.loadFile(path.join(__dirname, 'index.html'), {
+    query: { rect: JSON.stringify(rect), config: JSON.stringify(config), assets: JSON.stringify(assets) },
+  });
+  win.once('ready-to-show', () => win.showInactive());
+  if (process.env.INTRO_DEBUG) {
+    win.webContents.on('console-message', (_e, level, msg) => console.log('[renderer]', level, msg));
+    win.webContents.on('did-fail-load', (_e, code, desc) => console.log('[load-fail]', code, desc));
+  }
+
+  globalShortcut.register('Escape', () => { launchTab(); app.quit(); });
+  setTimeout(() => { launchTab(); app.quit(); }, 20000); // safety net
+  setTimeout(launchTab, 9000); // even if the renderer never reports, the tab still opens
+});
+
+app.on('window-all-closed', () => app.quit());
+app.on('will-quit', () => { launchTab(); globalShortcut.unregisterAll(); });
