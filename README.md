@@ -5,7 +5,19 @@
 
 # Claude Whiteboard
 
-输入 `claude`，先看一段马克笔动画把终端涂成白板，再进入一个白板风格的 Claude Code 窗口。普通终端保持原样，退出 Claude Code 后白板窗口自动关闭。
+**给 Claude Code 一个白板开场。** 在终端输入 `claude`：一只拿着马克笔的小怪物把你的终端涂成白板、画出 Claude Code 的界面，然后你进入一个白板风格的 Claude Code 窗口。
+
+*A marker-drawn launch animation and whiteboard theme for Claude Code, for Windows Terminal and macOS Terminal.*
+
+**特色**
+
+- **手绘开场动画**，不想看就跳过：按 Esc 或点右上角的“跳过”，Windows 上直接进入已经在后台启动的 Claude Code，不用干等。
+- **动画跟着窗口走**：播放时拖动、缩放终端窗口，动画不会错位。
+- **白板配色 + 手写字体**，只作用于这个窗口：普通终端保持原样，退出 Claude Code 后白板窗口自动关闭。
+- **一行命令安装和更新**：不需要 Node.js、git、管理员权限；`claude-wb` 命令管理更新、自检、开关动画和卸载。
+- **装得放心**：下载的运行环境会校验官方 SHA-256，改动前先备份，随时一键卸载。
+
+支持 Windows 10/11（Windows Terminal）和 Mac（Terminal.app；Mac 版尚未在更多机器上验证）。
 
 ## 一键安装（复制、粘贴、回车）
 
