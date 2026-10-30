@@ -267,7 +267,8 @@ Say "正在自检 ..."
 $ErrorActionPreference = "Continue"
 $report = & powershell.exe -ExecutionPolicy Bypass -File (Join-Path $wbDir "tools\check.ps1") 2>&1 | ForEach-Object { "$_" }
 $ErrorActionPreference = "Stop"
-$fails = @($report | Where-Object { $_ -match "\[FAIL\]" })
+# 6b ("claude is the function in THIS window") is about the window the user types in, not about this installer process
+$fails = @($report | Where-Object { $_ -match "\[FAIL\]" -and $_ -notmatch "\s6b\s" })
 Write-Host ""
 if ($fails.Count -eq 0) {
     Write-Host "全部装好了（版本 $version）。动画: $(if ($introOk) {'开'} else {'关'})。" -ForegroundColor Green

@@ -57,7 +57,7 @@ Row $profOk "6 PowerShell profile block" "重新运行一键安装命令（READM
 $shellFile = Join-Path $wbDir "shell.ps1"
 Row (Test-Path $shellFile) "6a ~/.whiteboard/shell.ps1 (claude / claude-wb functions)" "重新运行一键安装命令（README 第一段）"
 $cmd = Get-Command claude -ErrorAction SilentlyContinue
-Row ($cmd -and $cmd.CommandType -eq "Function") "6b 'claude' is the whiteboard function in THIS window" "open a NEW terminal tab (old tabs keep the old command)"
+Row ($cmd -and $cmd.CommandType -eq "Function") "6b 'claude' is the whiteboard function in THIS window" "新开一个标签页（旧标签页还是旧的命令）"
 $shellText = ""; if (Test-Path $shellFile) { $shellText = [IO.File]::ReadAllText($shellFile) }
 Row (($shellText -match "Get-WbTerminalRect") -and ($shellText -match "claude-wb")) "6c shell.ps1 is the current version (intro + claude-wb)" "重新运行一键安装命令（旧的 claude-only.ps1 会把它改回去，别再用）"
 $real = Get-Command claude -CommandType Application, ExternalScript -ErrorAction SilentlyContinue | Select-Object -First 1
