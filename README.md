@@ -50,6 +50,8 @@ curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-
 
 输入 `claude-wb update`，或者再运行一次上面的一键安装命令。你放的角色图和动画设置都会保留。
 
+安装和更新默认装的是 **最新的 [Release](../../releases)**（稳定版），不会装到 `main` 上写了一半的东西。`claude-wb version` 也是拿它和最新 Release 比较。想试最新的开发版，先指定 `main`：Windows 用 `$env:CLAUDE_WB_REF='main'`，Mac 用 `CLAUDE_WB_REF=main`，再运行一键安装命令；这样装的会一直跟着 `main` 更新。
+
 ## 出问题了
 
 1. 输入 `claude-wb doctor`，看红色的 `[FAIL]` 行，后面写着怎么办。
@@ -96,3 +98,14 @@ curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-
 | `fonts/` `assets/` `claude/` | 手写风字体、白板背景和滤镜、Claude Code 主题和状态栏 |
 | `intro/app/` | 启动动画程序（Electron） |
 | `VERSION` | 版本号（`claude-wb version` 用它判断有没有新版本） |
+
+## 发布新版本（维护者）
+
+1. 把 `VERSION` 改成新版本号（比如 `2.1.0`），合并到 `main`。
+2. 打标签并推送：
+
+```bash
+git tag v2.1.0 && git push origin v2.1.0
+```
+
+3. `.github/workflows/release.yml` 会自动检查标签和 `VERSION` 一致，然后创建 GitHub Release（自动生成更新说明）。几分钟后，所有人的一键安装和 `claude-wb update` 就会装到这个版本。
