@@ -13,7 +13,7 @@
 
 ## 这个包
 
-`setup.ps1` 合并并取代了旧的 `install.ps1`、`claude-only.ps1`、`install-intro.ps1`，重复运行是安全的。
+`setup.ps1` 合并并取代了旧的 `claude-only.ps1`、`install-intro.ps1`，重复运行是安全的。用户一般不直接运行它：一键安装入口是仓库根目录的 `install.ps1`（`irm ... | iex`，下载仓库 zip 后调用 `setup.ps1`）和 Mac 的 `install.sh`；装好后用 `claude-wb update | version | doctor | intro on/off | uninstall` 管理。
 
 它依次做 7 步：
 
@@ -25,12 +25,14 @@
    - 加入配色方案。
    - 重写 Claude Whiteboard 配置，GUID 为 `{7b1e5c2a-4d3f-4c8e-9a1b-3c5d7e9f0a12}`。`builtinGlyphs:false` **只**写在 `font` 对象里。
 5. 安装动画到 `~/.whiteboard/intro/app`：
-   - 已有 `node_modules` 的就保留，不重新下载。
-   - 没有 Node 就跳过，`claude` 会直接开标签页。
-6. 改写 `$PROFILE` 里 `# >>> whiteboard-claude >>>` 标记之间的内容，包含 `claude`（带动画）、`claude-quick`、`claude-plain` 三个函数。
+   - 动画运行环境（Electron）直接从官方 release 下载并校验 SHA-256，解压到 `~/.whiteboard/intro/electron`，**不需要 Node.js**；之前用 npm 装的 `node_modules` 版本仍然兼容。
+   - 下载失败就跳过，`claude` 会直接开标签页。
+6. 改写 `$PROFILE` 里 `# >>> whiteboard-claude >>>` 标记之间的内容：只有一行，加载 `~/.whiteboard/shell.ps1`（源文件是仓库的 `shell/whiteboard-claude.ps1`，里面是 `claude`、`claude-quick`、`claude-plain`、`claude-wb`）。同时把 `setup.ps1`、`check.ps1` 复制到 `~/.whiteboard/tools`，把来源和版本写进 `~/.whiteboard/install.json`。
 7. 如果执行策略是 Restricted，把 CurrentUser 的策略设为 RemoteSigned。
 
-`check.ps1` 是只读检查。`-Undo` 用来撤销。
+`check.ps1` 是只读检查（`claude-wb doctor`）。`-Undo` 用来撤销（`claude-wb uninstall`）。装完 `setup.ps1` 会自动自检一次，只显示有问题的项。
+
+注意：带中文输出的 `.ps1` 文件（`setup.ps1`、`check.ps1`、`shell/whiteboard-claude.ps1`）必须保存为 **UTF-8 带 BOM**，否则 Windows PowerShell 5.1 会按 ANSI 读成乱码；`install.ps1` 是直接 `irm | iex` 运行的，保持纯 ASCII。
 
 ## 已知风险
 
@@ -45,7 +47,7 @@
 
 | 现象 | 处理 |
 |---|---|
-| 输入 `claude` 后没开新标签页 | 运行 `check.ps1`，看第 6 项和第 7 项 |
+| 输入 `claude` 后没开新标签页 | 运行 `claude-wb doctor`，看第 6 项和第 7 项 |
 | 新标签页一闪就关 | 运行 `powershell -NoProfile -File "$HOME\.whiteboard\claude-wb.ps1"` 看报错，多半是 PATH 里找不到 claude |
 | 框线还是直的 | 看 `check.ps1` 的 4e 项；Windows Terminal 需要 1.21 以上版本 |
 | 着色器报错或文字发虚 | 运行 `setup.ps1 -NoShader` |
