@@ -202,7 +202,7 @@ public static class WbWin {
     if ([WbWin]::DwmGetWindowAttribute(`$h, 9, [ref]`$r, [Runtime.InteropServices.Marshal]::SizeOf(`$r)) -ne 0) { [void][WbWin]::GetWindowRect(`$h, [ref]`$r) }
     `$w = `$r.Right - `$r.Left; `$hgt = `$r.Bottom - `$r.Top
     if (`$w -lt 200 -or `$hgt -lt 150) { return `$null }
-    return "{0},{1},{2},{3}" -f `$r.Left, `$r.Top, `$w, `$hgt
+    return "{0},{1},{2},{3},{4}" -f `$r.Left, `$r.Top, `$w, `$hgt, `$h.ToInt64()
 }
 function Get-WbTabArgs([object[]]`$extra) {
     `$dir = (Get-Location).ProviderPath
@@ -217,7 +217,11 @@ function claude {
     `$intro = Join-Path `$appDir 'node_modules\electron\dist\electron.exe'
     `$rect = `$null
     if ((Test-Path `$intro) -and -not `$env:CLAUDE_NO_INTRO) { try { `$rect = Get-WbTerminalRect } catch { `$rect = `$null } }
-    if (`$rect) { & `$intro `$appDir "--rect=`$rect" '--wt' @tabArgs }
+    if (`$rect) {
+        # "x,y,w,h,hwnd": the overlay follows that window if it is moved or resized while the intro plays
+        `$p = `$rect -split ','
+        & `$intro `$appDir ("--rect=" + (`$p[0..3] -join ',')) ("--hwnd=" + `$p[4]) '--wt' @tabArgs
+    }
     else { & wt.exe @tabArgs }
 }
 function claude-quick {

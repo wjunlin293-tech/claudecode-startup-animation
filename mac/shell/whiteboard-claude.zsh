@@ -26,7 +26,7 @@ claude() {
   if [[ -x "$electron" && -z "$CLAUDE_NO_INTRO" ]]; then
     # one query: window bounds "x1,y1,x2,y2" (points), then the real tab's rows / cols / font / size,
     # then the Claude Whiteboard profile's font / size. Everything is read live, so any Mac's settings work.
-    local info rect term tb
+    local info rect term tb winid
     info=$(osascript 2>/dev/null <<'APPLESCRIPT'
 tell application "Terminal"
   set w to front window
@@ -38,20 +38,22 @@ tell application "Terminal"
     set wfn to font name of settings set "Claude Whiteboard"
     set wfs to font size of settings set "Claude Whiteboard"
   end try
-  return ((item 1 of b) as text) & "," & ((item 2 of b) as text) & "," & ((item 3 of b) as text) & "," & ((item 4 of b) as text) & "|" & ((number of rows of t) as text) & "|" & ((number of columns of t) as text) & "|" & (font name of t) & "|" & ((font size of t) as text) & "|" & wfn & "|" & (wfs as text)
+  return ((item 1 of b) as text) & "," & ((item 2 of b) as text) & "," & ((item 3 of b) as text) & "," & ((item 4 of b) as text) & "|" & ((number of rows of t) as text) & "|" & ((number of columns of t) as text) & "|" & (font name of t) & "|" & ((font size of t) as text) & "|" & wfn & "|" & (wfs as text) & "|" & ((id of w) as text)
 end tell
 APPLESCRIPT
 )
     rect=$(print -r -- "$info" | awk -F'|' '{ n=split($1, a, ","); if (n==4) printf "%d,%d,%d,%d", a[1], a[2], a[3]-a[1], a[4]-a[2] }')
+    # id of the window, so the overlay can follow it if it is moved or resized while the intro plays
+    winid=$(print -r -- "$info" | awk -F'|' 'NF==8 { print $8 }')
     # real title-bar height of this macOS version
     tb=$(osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSWindow.frameRectForContentRectStyleMask($.NSMakeRect(0,0,100,100),15).size.height-100' 2>/dev/null)
     [[ "$tb" =~ ^[0-9.]+$ ]] || tb=28
-    term=$(print -r -- "$info" | awk -F'|' -v tb="$tb" 'NF==7 { printf "{\"rows\":%s,\"cols\":%s,\"font\":\"%s\",\"size\":%s,\"wbFont\":\"%s\",\"wbSize\":%s,\"titlebar\":%s}", $2, $3, $4, $5, $6, $7, tb }')
+    term=$(print -r -- "$info" | awk -F'|' -v tb="$tb" 'NF==8 { printf "{\"rows\":%s,\"cols\":%s,\"font\":\"%s\",\"size\":%s,\"wbFont\":\"%s\",\"wbSize\":%s,\"titlebar\":%s}", $2, $3, $4, $5, $6, $7, tb }')
     if [[ -n "$rect" ]]; then
       # GUI overlay in the background; it opens the real window itself, after it has finished and quit
       local freeze=""
       [[ -n "$CLAUDE_INTRO_FREEZE" ]] && freeze="--freeze=$CLAUDE_INTRO_FREEZE"   # debug: hold the animation at that second
-      "$electron" "$app" "--rect=$rect" "--term=$term" $freeze --wt "$HOME/.whiteboard/open-tab.sh" "$PWD" "$@" >/dev/null 2>&1 &!
+      "$electron" "$app" "--rect=$rect" "--term=$term" "--winid=$winid" $freeze --wt "$HOME/.whiteboard/open-tab.sh" "$PWD" "$@" >/dev/null 2>&1 &!
       return
     fi
   fi

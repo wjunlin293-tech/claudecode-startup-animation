@@ -1,5 +1,6 @@
 // Electron main: one transparent, always-on-top, click-through window over the display
-// that holds the terminal. Plays the intro once, then quits. Esc skips.
+// that holds the terminal. Plays the intro once, then quits. Esc (or the Skip button) skips.
+// While it plays, the Terminal window's bounds are polled so the overlay follows when it is moved or resized.
 const { app, BrowserWindow, screen, globalShortcut, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -33,6 +34,73 @@ function launchTab() {
 }
 // macOS: the real window is opened only after the overlay has finished and quit (see will-quit), never while it is still on screen
 ipcMain.on('covered', () => {});
+ipcMain.on('ready', () => {});
+ipcMain.handle('get-snapshot', () => null);   // no frozen-picture cover on macOS (it would need the Screen Recording permission)
+
+let win = null;
+let curBounds = null;
+let poller = null;
+function skip() {
+  try { if (win && !win.isDestroyed()) win.hide(); } catch {}   // the overlay disappears at once
+  launchTab();
+  app.quit();
+}
+ipcMain.on('skip', skip);
+// the skip button is the only part of the overlay that takes the mouse
+ipcMain.on('clickable', (_e, on) => { if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!on, { forward: true }); });
+
+// ---- follow the Terminal window (moved / resized while the intro plays) ----
+function pushRect(r, term) {
+  if (!win || win.isDestroyed()) return;
+  const display = screen.getDisplayMatching({ x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) });
+  const b = display.bounds;
+  if (!curBounds || b.x !== curBounds.x || b.y !== curBounds.y || b.width !== curBounds.width || b.height !== curBounds.height) {
+    curBounds = b;
+    win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+  }
+  win.webContents.send('rect', { rect: { x: r.x - b.x, y: r.y - b.y, w: r.width, h: r.height }, stage: { w: b.width, h: b.height }, term });
+}
+// lines of "x1,y1,x2,y2|rows|cols" (window bounds in points, then the tab's live grid)
+let lineBuf = '';
+function feedLines(chunk) {
+  lineBuf += chunk;
+  let i;
+  while ((i = lineBuf.indexOf('\n')) >= 0) {
+    const [bounds, rows, cols] = lineBuf.slice(0, i).trim().split('|');
+    lineBuf = lineBuf.slice(i + 1);
+    const n = (bounds || '').split(',').map(Number);
+    if (n.length !== 4 || !n.every(Number.isFinite)) continue;
+    const w = n[2] - n[0], h = n[3] - n[1];
+    if (w < 200 || h < 150) continue;
+    const term = (+rows > 0 && +cols > 0) ? { rows: +rows, cols: +cols } : undefined;
+    pushRect({ x: n[0], y: n[1], width: w, height: h }, term);
+  }
+}
+function startFollow(winId) {
+  if (!/^\d+$/.test(winId || '')) return;
+  // 100 ms * 250 = 25 s, longer than the intro can ever run, so the loop can never outlive it
+  const script = [
+    'tell application "Terminal"',
+    '  repeat 250 times',
+    '    try',
+    `      set b to bounds of window id ${winId}`,
+    `      set t to selected tab of window id ${winId}`,
+    '      log ((item 1 of b) as text) & "," & ((item 2 of b) as text) & "," & ((item 3 of b) as text) & "," & ((item 4 of b) as text) & "|" & ((number of rows of t) as text) & "|" & ((number of columns of t) as text)',
+    '    on error',
+    '      exit repeat',
+    '    end try',
+    '    delay 0.1',
+    '  end repeat',
+    'end tell',
+  ].join('\n');
+  try {
+    poller = spawn('/usr/bin/osascript', ['-e', script], { stdio: ['ignore', 'ignore', 'pipe'] });   // `log` writes to stderr
+    poller.stderr.setEncoding('utf8');
+    let last = '';
+    poller.stderr.on('data', (d) => { if (d !== last) { last = d; feedLines(d); } });
+    poller.on('error', (e) => console.error('[intro] window follower failed:', e.message));
+  } catch (e) { console.error('[intro] window follower failed:', e.message); }
+}
 
 function arg(name) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -41,6 +109,7 @@ function arg(name) {
 
 app.whenReady().then(() => {
   const config = Object.assign({}, readJSON(path.join(__dirname, 'config.json')), readJSON(path.join(userDir, 'intro-config.json')));
+  config.platform = process.platform;
   // --freeze=<seconds>: debug aid, pauses the animation at that moment (Esc closes) so it can be compared with the real window
   const freeze = parseFloat(arg('freeze'));
   if (freeze > 0) config.freeze = freeze;
@@ -80,8 +149,9 @@ app.whenReady().then(() => {
   const dip = (process.platform === 'win32' && raw) ? screen.screenToDipRect(null, phys) : phys;
   const display = screen.getDisplayMatching({ x: Math.round(dip.x), y: Math.round(dip.y), width: Math.round(dip.width), height: Math.round(dip.height) });
   const b = display.bounds;
+  curBounds = b;
 
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     x: b.x, y: b.y, width: b.width, height: b.height,
     transparent: true, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
     alwaysOnTop: true, skipTaskbar: true, focusable: false, hasShadow: false, show: false,
@@ -92,7 +162,7 @@ app.whenReady().then(() => {
   win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });   // exact placement, menu bar included
   win.setAlwaysOnTop(true, 'screen-saver');
   if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  win.setIgnoreMouseEvents(true);
+  win.setIgnoreMouseEvents(true, { forward: true });
   const rect = { x: dip.x - b.x, y: dip.y - b.y, w: dip.width, h: dip.height };
   win.loadFile(path.join(__dirname, 'index.html'), {
     query: { rect: JSON.stringify(rect), config: JSON.stringify(config), assets: JSON.stringify(assets) },
@@ -103,10 +173,12 @@ app.whenReady().then(() => {
     win.webContents.on('did-fail-load', (_e, code, desc) => console.log('[load-fail]', code, desc));
   }
 
-  globalShortcut.register('Escape', () => { launchTab(); app.quit(); });
+  globalShortcut.register('Escape', skip);
+  startFollow(arg('winid'));
+  if (process.env.INTRO_DEBUG) { process.stdin.setEncoding('utf8'); process.stdin.on('data', feedLines); }   // debug: feed "x1,y1,x2,y2|rows|cols" lines by hand
   if (freeze > 0) setTimeout(launchTab, 3000);   // debug: open the real window early so the frozen overlay sits right over it
   if (!(freeze > 0)) setTimeout(() => { launchTab(); app.quit(); }, 20000); // safety net (not while frozen for debugging)
 });
 
 app.on('window-all-closed', () => app.quit());
-app.on('will-quit', () => { launchTab(); globalShortcut.unregisterAll(); });
+app.on('will-quit', () => { launchTab(); globalShortcut.unregisterAll(); try { if (poller) poller.kill(); } catch {} });
