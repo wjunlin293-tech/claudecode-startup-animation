@@ -1,6 +1,8 @@
 #!/bin/bash
 # Claude Whiteboard for macOS (Terminal.app): marker intro + a themed "Claude Whiteboard" tab.
-#   bash mac/setup.sh              install (safe to run again)
+# Easiest way to run it: the one-line installer in README.md (install.sh). No Node.js needed: the animation
+# runtime (Electron) is downloaded from the official release and checked against its published SHA-256.
+#   bash mac/setup.sh              install / update (safe to run again)
 #   bash mac/setup.sh --no-intro   no animation, just the themed tab
 #   bash mac/setup.sh --undo       remove the zsh hook and the intro (fonts and profile are kept)
 # Nothing here needs sudo. Changed files are backed up as <file>.bak-<time> first.
@@ -16,7 +18,7 @@ for a in "$@"; do
   case "$a" in
     --undo) undo=1 ;;
     --no-intro) nointro=1 ;;
-    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
     *) echo "unknown option: $a"; exit 1 ;;
   esac
 done
@@ -77,6 +79,25 @@ JXA
   esac
 }
 
+# download the Electron runtime straight from the official release, verify its published SHA-256, unpack it
+install_electron() { # install_electron <dest>; returns 0 when the runtime is in place
+  local dest="$1" ver="33.2.1" arch name base zip want got
+  if [ -x "$dest/Electron.app/Contents/MacOS/Electron" ] && [ "$(tr -d '[:space:]' < "$dest/version" 2>/dev/null)" = "$ver" ]; then return 0; fi
+  if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then arch=arm64; else arch=x64; fi   # also right inside a Rosetta shell
+  name="electron-v$ver-darwin-$arch.zip"
+  base="https://github.com/electron/electron/releases/download/v$ver"
+  zip="$(mktemp "${TMPDIR:-/tmp}/wbelectron.XXXXXX")"
+  say "3/5 正在下载动画运行环境（约 100 MB，只需要这一次）..."
+  if ! curl -fsSL "$base/$name" -o "$zip"; then say "    下载失败 (download failed)"; rm -f "$zip"; return 1; fi
+  want="$(curl -fsSL "$base/SHASUMS256.txt" | awk -v n="$name" '{ f=$2; sub(/^\*/, "", f); if (f == n) { print $1; exit } }')"
+  if command -v shasum >/dev/null 2>&1; then got="$(shasum -a 256 "$zip" | awk '{print $1}')"; else got="$(sha256sum "$zip" | awk '{print $1}')"; fi
+  if [ -z "$want" ] || [ "$got" != "$want" ]; then say "    校验值对不上（下载损坏或被篡改），已丢弃 (checksum mismatch, discarded)"; rm -f "$zip"; return 1; fi
+  rm -rf "$dest"; mkdir -p "$dest"
+  if command -v ditto >/dev/null 2>&1; then ditto -x -k "$zip" "$dest"; else unzip -q "$zip" -d "$dest"; fi   # ditto keeps the .app's symlinks intact
+  rm -f "$zip"
+  [ -x "$dest/Electron.app/Contents/MacOS/Electron" ]
+}
+
 if [ "$(uname)" != "Darwin" ]; then echo "This installer is for macOS only."; exit 1; fi
 if [ ! -d "/System/Applications/Utilities/Terminal.app" ] && [ ! -d "/Applications/Utilities/Terminal.app" ]; then
   echo "Terminal.app not found."; exit 1
@@ -98,6 +119,14 @@ if [ "$undo" -eq 0 ]; then
   cp "$here/bin/claude-wb.sh" "$here/bin/open-tab.sh" "$wb/"
   chmod +x "$wb/claude-wb.sh" "$wb/open-tab.sh"
   cp "$here/shell/whiteboard-claude.zsh" "$wb/shell.zsh"
+  # keep setup/check around, so `claude-wb doctor` and `claude-wb uninstall` work without the download folder
+  mkdir -p "$wb/tools"
+  for t in setup.sh check.sh; do
+    [ "$here/$t" = "$wb/tools/$t" ] || cp "$here/$t" "$wb/tools/$t"
+  done
+  chmod +x "$wb/tools/"*.sh
+  version="$(tr -d '[:space:]' < "$repo/VERSION" 2>/dev/null || true)"
+  printf '{\n  "repo": "%s",\n  "ref": "%s",\n  "version": "%s"\n}\n' "${CLAUDE_WB_REPO:-wjunlin293-tech/claudecode-startup-animation}" "${CLAUDE_WB_REF:-main}" "${version:-?}" > "$wb/install.json"
   say "2/5 launcher scripts copied to $wb"
   if [ -f "$repo/claude/whiteboard.json" ]; then
     mkdir -p "$HOME/.claude/themes"
@@ -108,21 +137,20 @@ if [ "$undo" -eq 0 ]; then
   fi
 
   # ---------- 3. intro animation ----------
-  electron="$wb/intro/app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+  electron_dir="$wb/intro/electron"
+  electron="$electron_dir/Electron.app/Contents/MacOS/Electron"
+  old_electron="$wb/intro/app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
   if [ "$nointro" -eq 1 ]; then
     say "3/5 intro skipped (--no-intro)"
   else
     mkdir -p "$wb/intro/app" "$wb/characters"
     rsync -a --exclude node_modules "$here/intro/app/" "$wb/intro/app/"
-    if [ -x "$electron" ]; then
-      say "3/5 intro updated (Electron runtime already present)"
-    elif command -v npm >/dev/null 2>&1; then
-      say "3/5 downloading the Electron runtime (about 100 MB, one time)..."
-      (cd "$wb/intro/app" && npm install --no-audit --no-fund --loglevel=error) || true
-      if [ -x "$electron" ]; then say "3/5 intro installed"
-      else say "3/5 WARNING: npm install did not produce Electron - 'claude' will open the tab without the intro"; fi
+    if install_electron "$electron_dir"; then
+      say "3/5 启动动画已就绪 (intro ready)"
+    elif [ -x "$old_electron" ]; then
+      say "3/5 启动动画已更新，继续用之前装好的运行环境 (intro updated, kept the older runtime)"
     else
-      say "3/5 WARNING: Node.js not found, intro skipped. Install it (brew install node), then run this again."
+      say "3/5 提示：没装上动画运行环境（多半是网络问题）。claude 仍然能用，只是没有开场动画；联网后重新运行安装命令即可补上。"
     fi
     if [ ! -f "$wb/intro-config.json" ]; then
       printf '{\n  "codeOpacity": 0.28,\n  "speed": 1,\n  "showHeart": true\n}\n' > "$wb/intro-config.json"
@@ -164,10 +192,13 @@ else
   claude_theme unset
   say "5/5 ~/.zshrc cleaned and the intro removed (backup .bak-$stamp)"
   say "The 'Claude Whiteboard' profile and the font are kept (harmless). To delete the profile: Terminal > Settings > Profiles > Claude Whiteboard > '-'."
+  say "已卸载。想装回来：重新运行一键安装命令。"
 fi
 
 if [ "$undo" -eq 0 ]; then
-  say "Done. Open a NEW Terminal tab, cd into a project and type: claude"
-  say "First run: macOS asks whether Electron / Terminal may control Terminal - click OK."
-  say "Check anything with: bash mac/check.sh"
+  echo
+  say "全部装好了。怎么用："
+  say "  打开一个【新的】Terminal 标签页（或在当前窗口输入 exec zsh），cd 到项目文件夹，输入  claude"
+  say "  第一次运行时 macOS 会问“是否允许控制 Terminal”，点 好 / OK。"
+  say "  日常管理：输入  claude-wb  （更新 / 自检 / 开关动画 / 卸载）"
 fi

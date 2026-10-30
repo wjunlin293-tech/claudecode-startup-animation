@@ -1,14 +1,24 @@
-# Claude Whiteboard - FINAL all-in-one setup (replaces install.ps1 + claude-only.ps1 + install-intro.ps1)
+﻿# Claude Whiteboard - all-in-one setup.  Easiest way to run it: the one-line installer, see README.md
 #  - normal Windows Terminal tabs stay dark
 #  - typing `claude` plays the marker intro, then opens an orange "Claude Whiteboard" tab in the current folder
-# Usage (from this folder):
-#   powershell -ExecutionPolicy Bypass -File .\setup.ps1              full install (safe to run again)
+#  - needs NO Node.js: the animation runtime (Electron) is downloaded and checksum-verified here
+# Usage (from this folder, or just double-click install.cmd):
+#   powershell -ExecutionPolicy Bypass -File .\setup.ps1              full install / update (safe to run again)
 #   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -NoIntro     no animation, just the whiteboard tab
 #   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -NoShader    no wobble/grain filter
 #   powershell -ExecutionPolicy Bypass -File .\setup.ps1 -Undo        remove profile, scheme, intro, claude function
 param([switch]$NoIntro, [switch]$NoShader, [switch]$Undo)
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"   # the progress bar makes Windows PowerShell 5.1 downloads many times slower
+trap {
+    Write-Host ""
+    Write-Host "[whiteboard] 出错了: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[whiteboard] 改动过的文件都已备份成 .bak-时间。重新运行一次通常就好；还不行，把这段报错原文发给我。" -ForegroundColor Red
+    exit 1
+}
 $here  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$version = "?"
+try { $version = ([IO.File]::ReadAllText((Join-Path $here "VERSION"))).Trim() } catch {}
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $utf8  = New-Object System.Text.UTF8Encoding($false)
 function Say($m) { Write-Host "[whiteboard] $m" }
@@ -35,15 +45,27 @@ if (-not $Undo) {
         catch { Say "font $($f.file) is in use, keeping the installed copy" }
         New-ItemProperty -Path $reg -Name $f.name -Value $dst -PropertyType String -Force | Out-Null
     }
-    Say "1/7 fonts installed"
+    Say "1/7 字体已安装"
 
 # ======================= 2. assets + launcher =======================
     New-Item -ItemType Directory -Force -Path $wbDir | Out-Null
     Copy-Item (Join-Path $here "assets\whiteboard-bg.png") $wbDir -Force
     Copy-Item (Join-Path $here "assets\whiteboard.hlsl")   $wbDir -Force
+    # the shell functions (claude, claude-wb ...) live in their own file, so an update never has to rewrite $PROFILE
+    Copy-Item (Join-Path $here "shell\whiteboard-claude.ps1") (Join-Path $wbDir "shell.ps1") -Force
+    # keep setup/check around, so `claude-wb doctor` and `claude-wb uninstall` work without the download folder
+    $toolsDir = Join-Path $wbDir "tools"
+    New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
+    foreach ($t in @("setup.ps1", "check.ps1")) {
+        $from = Join-Path $here $t; $to = Join-Path $toolsDir $t
+        if ((Test-Path $from) -and ($from -ne $to)) { Copy-Item $from $to -Force }
+    }
+    $repoId = if ($env:CLAUDE_WB_REPO) { $env:CLAUDE_WB_REPO } else { "wjunlin293-tech/claudecode-startup-animation" }
+    $refId  = if ($env:CLAUDE_WB_REF)  { $env:CLAUDE_WB_REF }  else { "main" }
+    [IO.File]::WriteAllText((Join-Path $wbDir "install.json"), ([ordered]@{ repo = $repoId; ref = $refId; version = $version; installedAt = (Get-Date -Format "s") } | ConvertTo-Json), $utf8)
     $launcherText = "`$Host.UI.RawUI.WindowTitle = `"Claude Code`"`r`n& claude @args`r`n"
     [IO.File]::WriteAllText($launcher, $launcherText, $utf8)
-    Say "2/7 background, filter and launcher copied to $wbDir"
+    Say "2/7 背景图、滤镜、启动脚本已放到 $wbDir"
 
 # ======================= 3. Claude Code theme + status line =======================
     $claudeDir = Join-Path $HOME ".claude"
@@ -60,7 +82,7 @@ if (-not $Undo) {
     $status = [PSCustomObject]@{ type = "command"; command = "powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/statusline.ps1"; padding = 1 }
     $settings | Add-Member -NotePropertyName statusLine -NotePropertyValue $status -Force
     [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Depth 32), $utf8)
-    Say "3/7 Claude Code theme + status line installed"
+    Say "3/7 Claude Code 主题和状态栏已安装"
 }
 
 # ======================= 4. Windows Terminal =======================
@@ -70,7 +92,7 @@ $wtCandidates = @(
     (Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\settings.json")
 )
 $wt = $wtCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $wt) { throw "Windows Terminal settings.json not found. Install Windows Terminal from the Microsoft Store, open it once, then run this again." }
+if (-not $wt) { throw "没找到 Windows Terminal 的设置文件。请先在微软商店安装 Windows Terminal（Windows 11 自带），打开它一次，然后重新运行这个安装命令。" }
 $text  = [IO.File]::ReadAllText($wt)
 $clean = ($text -split "`n" | Where-Object { $_.TrimStart() -notlike "//*" }) -join "`n"
 $j = $clean | ConvertFrom-Json
@@ -140,37 +162,66 @@ if (-not $Undo) {
 }
 $j.profiles | Add-Member -NotePropertyName list -NotePropertyValue $list -Force
 [IO.File]::WriteAllText($wt, ($j | ConvertTo-Json -Depth 32), $utf8)
-Say "4/7 Windows Terminal: normal tabs default, profile '$profName' $(if ($Undo) {'removed'} else {'written'}) (backup .bak-$stamp)"
+Say "4/7 Windows Terminal: 普通标签页保持原样，'$profName' 配置已$(if ($Undo) {'移除'} else {'写入'})（备份 .bak-$stamp）"
 
 # ======================= 5. intro animation =======================
+# The animation runtime (Electron) is downloaded straight from the official release and checked against its
+# published SHA-256 - no Node.js / npm needed. Older npm-based installs keep working.
+function Install-WbElectron([string]$dest) {
+    $ver  = "33.2.1"
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { "arm64" } else { "x64" }
+    $exeP = Join-Path $dest "electron.exe"
+    $verF = Join-Path $dest "version"
+    if ((Test-Path $exeP) -and (Test-Path $verF) -and (([IO.File]::ReadAllText($verF)).Trim() -eq $ver)) { return $true }
+    $name = "electron-v$ver-win32-$arch.zip"
+    $base = "https://github.com/electron/electron/releases/download/v$ver"
+    $zip  = Join-Path ([IO.Path]::GetTempPath()) $name
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Say "5/7 正在下载动画运行环境（约 100 MB，只需要这一次）..."
+        Invoke-WebRequest -UseBasicParsing "$base/$name" -OutFile $zip
+        $sums = Invoke-WebRequest -UseBasicParsing "$base/SHASUMS256.txt"
+        $text = if ($sums.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($sums.Content) } else { [string]$sums.Content }
+        $line = $text -split "`n" | Where-Object { $_ -match ("(^|[ *])" + [regex]::Escape($name) + "\s*$") } | Select-Object -First 1
+        if (-not $line) { throw "官方校验文件里没有 $name" }
+        $want = ($line.Trim() -split "\s+")[0].ToLower()
+        $got  = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+        if ($got -ne $want) { throw "下载文件的校验值对不上（下载损坏或被篡改）" }
+        if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+        New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)
+        return (Test-Path $exeP)
+    } catch {
+        Say "5/7 下载动画运行环境失败：$($_.Exception.Message)"
+        return $false
+    } finally { Remove-Item $zip -Force -ErrorAction SilentlyContinue }
+}
+
 $introOk = $false
-$exe = Join-Path $introDest "app\node_modules\electron\dist\electron.exe"
+$electronDir = Join-Path $introDest "electron"
+$oldExe = Join-Path $introDest "app\node_modules\electron\dist\electron.exe"
 if ($Undo) {
     Get-Process electron -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$introDest*" } | Stop-Process -Force
     if (Test-Path $introDest) { Remove-Item $introDest -Recurse -Force -ErrorAction SilentlyContinue }
-    Say "5/7 intro removed"
+    Say "5/7 启动动画已移除"
 } elseif ($NoIntro) {
-    Say "5/7 intro skipped (-NoIntro)"
+    Say "5/7 跳过启动动画 (-NoIntro)"
 } else {
     $src = Join-Path $here "intro\app"
     $appDest = Join-Path $introDest "app"
     Get-Process electron -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$introDest*" } | Stop-Process -Force
     New-Item -ItemType Directory -Force -Path $appDest | Out-Null
-    # copy/refresh app files, keep an existing node_modules (no re-download)
+    # copy/refresh app files (an older install's node_modules is left alone)
     Get-ChildItem $src | ForEach-Object { Copy-Item $_.FullName $appDest -Recurse -Force }
-    if (Test-Path $exe) {
+    if (Install-WbElectron $electronDir) {
         $introOk = $true
-        Say "5/7 intro updated (Electron runtime already present)"
-    } elseif (Get-Command npm -ErrorAction SilentlyContinue) {
-        Push-Location $appDest
-        try {
-            Say "5/7 downloading the Electron runtime (about 100 MB, one time)..."
-            & npm install --no-audit --no-fund --loglevel=error
-        } finally { Pop-Location }
-        if (Test-Path $exe) { $introOk = $true; Say "5/7 intro installed" }
-        else { Say "5/7 WARNING: npm install did not produce electron.exe - 'claude' will open the tab without the intro" }
+        Say "5/7 启动动画已就绪"
+    } elseif (Test-Path $oldExe) {
+        $introOk = $true
+        Say "5/7 启动动画已更新（继续用之前装好的运行环境）"
     } else {
-        Say "5/7 WARNING: Node.js not found, intro skipped. To add it: winget install OpenJS.NodeJS.LTS, open a new terminal, run setup.ps1 again"
+        Say "5/7 提示：没装上动画运行环境（多半是网络问题）。claude 仍然能用，只是没有开场动画；联网后重新运行安装命令即可补上。"
     }
     $charDir = Join-Path $wbDir "characters"
     New-Item -ItemType Directory -Force -Path $charDir | Out-Null
@@ -180,60 +231,13 @@ if ($Undo) {
     }
 }
 
-# ======================= 6. PowerShell profile: claude / claude-quick / claude-plain =======================
+# ======================= 6. PowerShell profile: loads ~/.whiteboard/shell.ps1 =======================
+# $PROFILE only gets a 3-line block; the functions (claude, claude-quick, claude-plain, claude-wb) live in shell.ps1
 $begin = "# >>> whiteboard-claude >>>"
 $end   = "# <<< whiteboard-claude <<<"
 $block = @"
 $begin
-function Get-WbTerminalRect {
-    if (-not ('WbWin' -as [type])) {
-        Add-Type -TypeDefinition @'
-using System; using System.Runtime.InteropServices;
-public static class WbWin {
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
-  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out RECT rect, int size);
-}
-'@
-    }
-    `$h = [WbWin]::GetForegroundWindow()
-    `$r = New-Object WbWin+RECT
-    if ([WbWin]::DwmGetWindowAttribute(`$h, 9, [ref]`$r, [Runtime.InteropServices.Marshal]::SizeOf(`$r)) -ne 0) { [void][WbWin]::GetWindowRect(`$h, [ref]`$r) }
-    `$w = `$r.Right - `$r.Left; `$hgt = `$r.Bottom - `$r.Top
-    if (`$w -lt 200 -or `$hgt -lt 150) { return `$null }
-    return "{0},{1},{2},{3},{4}" -f `$r.Left, `$r.Top, `$w, `$hgt, `$h.ToInt64()
-}
-function Get-WbTabArgs([object[]]`$extra) {
-    `$dir = (Get-Location).ProviderPath
-    if (`$dir.EndsWith('\')) { `$dir = `$dir + '.' }
-    return @('-w', '0', 'nt', '-p', '$profName', '-d', `$dir,
-        'powershell.exe', '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '$launcher') + `$extra
-}
-function claude {
-    if (-not `$env:WT_SESSION) { claude-plain @args; return }
-    `$tabArgs = Get-WbTabArgs `$args
-    `$appDir = Join-Path `$HOME '.whiteboard\intro\app'
-    `$intro = Join-Path `$appDir 'node_modules\electron\dist\electron.exe'
-    `$rect = `$null
-    if ((Test-Path `$intro) -and -not `$env:CLAUDE_NO_INTRO) { try { `$rect = Get-WbTerminalRect } catch { `$rect = `$null } }
-    if (`$rect) {
-        # "x,y,w,h,hwnd": the overlay follows that window if it is moved or resized while the intro plays
-        `$p = `$rect -split ','
-        & `$intro `$appDir ("--rect=" + (`$p[0..3] -join ',')) ("--hwnd=" + `$p[4]) '--wt' @tabArgs
-    }
-    else { & wt.exe @tabArgs }
-}
-function claude-quick {
-    if (-not `$env:WT_SESSION) { claude-plain @args; return }
-    `$tabArgs = Get-WbTabArgs `$args
-    & wt.exe @tabArgs
-}
-function claude-plain {
-    `$real = Get-Command claude -CommandType Application, ExternalScript -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not `$real) { Write-Host "claude (Claude Code) not found on PATH"; return }
-    & `$real.Source @args
-}
+if (Test-Path "`$HOME\.whiteboard\shell.ps1") { . "`$HOME\.whiteboard\shell.ps1" }
 $end
 "@
 $profPath = $PROFILE
@@ -244,16 +248,36 @@ $pattern = "(?s)\r?\n?" + [regex]::Escape($begin) + ".*?" + [regex]::Escape($end
 $new = [regex]::Replace($old, $pattern, "`r`n")
 if (-not $Undo) { $new = $new.TrimEnd() + "`r`n`r`n" + $block + "`r`n" }
 [IO.File]::WriteAllText($profPath, $new, (New-Object System.Text.UTF8Encoding($true)))
-Say "6/7 PowerShell profile $(if ($Undo) {'cleaned'} else {'updated'}): $profPath"
+if ($Undo) { Remove-Item (Join-Path $wbDir "shell.ps1") -Force -ErrorAction SilentlyContinue }
+Say "6/7 PowerShell 配置已$(if ($Undo) {'清理'} else {'更新'}): $profPath"
 
 # ======================= 7. execution policy (so the profile loads) =======================
 if (-not $Undo -and (Get-ExecutionPolicy) -eq "Restricted") {
     Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
-    Say "7/7 execution policy for current user set to RemoteSigned"
-} else { Say "7/7 execution policy OK ($(Get-ExecutionPolicy))" }
+    Say "7/7 已把当前用户的脚本执行策略设为 RemoteSigned（不然 PowerShell 不会加载 claude 命令）"
+} else { Say "7/7 脚本执行策略正常 ($(Get-ExecutionPolicy))" }
 
 if ($Undo) {
-    Say "Undone. Fonts and the Claude theme file are kept (harmless). Close ALL Windows Terminal windows and reopen."
-} else {
-    Say "Done. Intro: $(if ($introOk) {'ON'} else {'OFF'}). Close ALL Windows Terminal windows, reopen, then run:  powershell -ExecutionPolicy Bypass -File .\check.ps1"
+    Say "已卸载。字体和 Claude 主题文件保留（不影响别的东西）。重新打开 Windows Terminal 标签页即可。想装回来：重新运行一键安装命令。"
+    return
 }
+
+# ======================= final self-check: show only what is wrong =======================
+Say "正在自检 ..."
+$ErrorActionPreference = "Continue"
+$report = & powershell.exe -ExecutionPolicy Bypass -File (Join-Path $wbDir "tools\check.ps1") 2>&1 | ForEach-Object { "$_" }
+$ErrorActionPreference = "Stop"
+$fails = @($report | Where-Object { $_ -match "\[FAIL\]" })
+Write-Host ""
+if ($fails.Count -eq 0) {
+    Write-Host "全部装好了（版本 $version）。动画: $(if ($introOk) {'开'} else {'关'})。" -ForegroundColor Green
+} else {
+    Write-Host "装好了，但有 $($fails.Count) 项需要注意：" -ForegroundColor Yellow
+    $fails | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+}
+Write-Host ""
+Write-Host "怎么用：" -ForegroundColor Cyan
+Write-Host "  cd 到你的项目文件夹，输入  claude          （动画 + 白板窗口；动画里按 Esc 或点「跳过」）"
+Write-Host "  日常管理：输入  claude-wb               （更新 / 自检 / 开关动画 / 卸载）"
+Write-Host "  第一次进入 Claude Code 后输入 /theme，选 Whiteboard Marker。"
+Write-Host "  如果这一行命令是在 Windows Terminal 里粘贴运行的，当前窗口已经能用 claude；否则请新开一个标签页。"

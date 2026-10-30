@@ -15,27 +15,25 @@
 
 ## 前提
 
-- macOS + 自带的 **Terminal.app**，默认 shell 是 zsh。
-- 已安装 Claude Code，终端里能运行 `claude`。
-- 想要动画：要有 Node.js（`brew install node`）。没有的话会跳过动画，只开白板标签页。
+- macOS + 自带的 **Terminal.app**，默认 shell 是 zsh；已安装 Claude Code。
+- 不需要 Node.js / git / Homebrew / sudo。动画运行环境会自动下载并校验。
 
-## 安装
+## 安装（一行）
 
-1. 下载**整个仓库**（不能只下 `mac/` 文件夹，字体在上一级的 `fonts/` 里）：
-   ```
-   git clone https://github.com/wjunlin293-tech/claudecode-startup-animation.git
-   cd claudecode-startup-animation
-   ```
-2. 运行：
-   ```
-   bash mac/setup.sh
-   ```
-   - 不想要动画：加 `--no-intro`
-   - 第一次装动画要下载约 100MB 的运行环境。
-3. 安装过程中会弹出一个新的 Terminal 窗口，那是在导入 **Claude Whiteboard** 配置，关掉它就行。
-4. **新开**一个 Terminal 标签页，`cd` 到任意项目，输入 `claude`。
-5. 第一次会弹出"想要控制 Terminal"的授权，点 **好**。如果之前点过"不允许"：系统设置 → 隐私与安全性 → 自动化，把 Terminal / Electron 对 Terminal 的开关打开。
-6. Claude Code 的配色：只有白板窗口里启动的 Claude Code 会用 **Whiteboard Marker** 主题（启动时带 `--settings` 参数指定，不改你的全局设置）。普通终端、`claude-plain` 里的 Claude Code 和终端颜色都保持原样。状态栏脚本是 Windows 专用的，Mac 版没装。
+```bash
+curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-animation/main/install.sh | bash
+```
+
+装完新开一个 Terminal 标签页（或输入 `exec zsh`），`cd` 到项目，输入 `claude`。
+
+- 安装过程中会弹出一个新的 Terminal 窗口，那是在导入 **Claude Whiteboard** 配置，关掉它就行。
+- 第一次会弹出"想要控制 Terminal"的授权，点 **好**。如果之前点过"不允许"：系统设置 → 隐私与安全性 → 自动化，把 Terminal / Electron 对 Terminal 的开关打开。
+- 只有白板窗口里启动的 Claude Code 会用 **Whiteboard Marker** 主题（启动时带 `--settings` 指定，不改你的全局设置）。状态栏脚本是 Windows 专用的，Mac 版没装。
+- 不想联网跑脚本：下载**整个仓库**（不能只下 `mac/`，字体在上一级）后运行 `bash mac/setup.sh`；不要动画加 `--no-intro`。
+
+## 日常管理
+
+输入 `claude-wb`：`update`（更新）、`version`、`doctor`（自检）、`intro on|off`、`uninstall`（卸载）。
 
 ## 常用命令
 
@@ -43,6 +41,7 @@
 |---|---|
 | `claude` | 播放动画，然后打开白板标签页 |
 | `claude-quick` | 不播动画，直接开白板标签页 |
+| `claude-wb` | 管理：更新 / 版本 / 自检 / 开关动画 / 卸载 |
 | `claude-plain` | 在当前标签页运行，不换外观 |
 | `CLAUDE_NO_INTRO=1 claude` | 这一次不播动画 |
 | `CLAUDE_INTRO_FREEZE=10.4 claude` | 调试：动画停在第 10.4 秒，盖在真实窗口上方便对比尺寸，按 Esc 退出 |
@@ -52,14 +51,14 @@
 
 ## 动画跟着窗口走
 
-动画播放期间拖动 Terminal 窗口，动画会一起移动；改变窗口大小，动画会按新的行列数重新排版，并从当前这一刻接着播。改完后重新运行 `bash mac/setup.sh` 即可（要更新 `~/.zshrc` 里引用的函数和动画程序）。
+动画播放期间拖动 Terminal 窗口，动画会一起移动；改变窗口大小，动画会按新的行列数重新排版，并从当前这一刻接着播。升级后输入 `claude-wb update` 即可。
 
 ## 检查
 
 ```
-bash mac/check.sh
+claude-wb doctor
 ```
-只读，不改任何东西，逐项显示是否装好。
+只读，不改任何东西，逐项显示是否装好（也可以直接运行 `bash mac/check.sh`）。
 
 ## 换成你自己的角色图
 
@@ -70,9 +69,9 @@ bash mac/check.sh
 | 现象 | 处理 |
 |---|---|
 | 输入 `claude` 没反应 | 新开一个标签页（旧标签页还是旧的命令）；运行 `bash mac/check.sh` |
-| 动画播了，但没有开白板标签页 | 多半是"自动化"授权被拒，见上面第 5 步 |
-| 没有动画，直接开了标签页 | 没装 Node.js，或 `npm install` 失败：`brew install node` 后重新运行 `bash mac/setup.sh` |
-| 白板窗口不是白底（还是系统的颜色） | 重新运行 `bash mac/setup.sh`（它会用 Terminal 自己的接口把背景色、文字色、字体设上）；再用 `bash mac/check.sh` 看 3b 项 |
+| 动画播了，但没有开白板标签页 | 多半是"自动化"授权被拒，见上面的授权说明 |
+| 没有动画，直接开了标签页 | 动画运行环境没下载成功（多半是网络）：联网后重新运行一键安装命令 |
+| 白板窗口不是白底（还是系统的颜色） | 重新运行一键安装命令（它会用 Terminal 自己的接口把背景色、文字色、字体设上）；再用 `claude-wb doctor` 看 3b 项 |
 | 标签页不是白底 | `check.sh` 的第 3 项；在 Terminal → 设置 → 描述文件里看有没有 Claude Whiteboard，没有就双击 `mac/terminal/Claude-Whiteboard.terminal` |
 | 吉祥物显示得很怪 | Terminal → 设置 → 描述文件 → Claude Whiteboard → 文本，把字体换成 Menlo 或 SF Mono，框线会变成系统的 |
 | 动画画的框和真实窗口差一点 | 改 `~/.whiteboard/intro-config.json` 里的 `"gridDy"`（单位是行，默认 0；负数上移、正数下移，如 `-0.5`、`1`），再用 `CLAUDE_INTRO_FREEZE=10.4 claude` 对照红色网格 |
@@ -81,6 +80,6 @@ bash mac/check.sh
 ## 卸载
 
 ```
-bash mac/setup.sh --undo
+claude-wb uninstall
 ```
 会清掉 `~/.zshrc` 里的钩子并删除动画程序（如果早先的版本改过全局主题，也一并还原）。字体和 Terminal 配置会留下，不影响别的东西。想删配置：Terminal → 设置 → 描述文件 → Claude Whiteboard → 点 `-`。
