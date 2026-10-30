@@ -18,10 +18,10 @@ irm https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-animati
 **Mac**（Terminal.app）：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-animation/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-animation/main/install.sh | bash && exec zsh
 ```
 
-装完 `cd` 到你的项目文件夹，输入 `claude`。就这样。Windows 上当前窗口立刻能用；Mac 上新开一个标签页（或输入 `exec zsh`）。
+装完 `cd` 到你的项目文件夹，输入 `claude`。就这样。当前窗口立刻能用（Mac 命令末尾的 `exec zsh` 就是让当前窗口加载新命令；如果你是分开运行的，装完请输入 `exec zsh` 或新开一个标签页）。
 
 - 前提：Windows 10/11 + Windows Terminal（Windows 11 自带；Windows 10 在微软商店装一个），或者 Mac 自带的 Terminal；已经装了 Claude Code。
 - **不需要** Node.js、git、Homebrew、管理员权限。动画用的运行环境会自动下载（约 100 MB，只下一次）并校验官方 SHA-256。

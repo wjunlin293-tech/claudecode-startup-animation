@@ -21,10 +21,10 @@
 ## 安装（一行）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-animation/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wjunlin293-tech/claudecode-startup-animation/main/install.sh | bash && exec zsh
 ```
 
-装完新开一个 Terminal 标签页（或输入 `exec zsh`），`cd` 到项目，输入 `claude`。
+命令末尾的 `exec zsh` 会让当前窗口立刻加载新命令。`cd` 到项目，输入 `claude`。如果没带 `&& exec zsh`，装完请输入 `exec zsh` 或新开一个标签页，否则会提示 `command not found: claude-wb`。
 
 - 安装过程中会弹出一个新的 Terminal 窗口，那是在导入 **Claude Whiteboard** 配置，关掉它就行。
 - 第一次会弹出"想要控制 Terminal"的授权，点 **好**。如果之前点过"不允许"：系统设置 → 隐私与安全性 → 自动化，把 Terminal / Electron 对 Terminal 的开关打开。

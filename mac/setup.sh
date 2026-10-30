@@ -198,7 +198,7 @@ fi
 if [ "$undo" -eq 0 ]; then
   echo
   say "全部装好了。怎么用："
-  say "  打开一个【新的】Terminal 标签页（或在当前窗口输入 exec zsh），cd 到项目文件夹，输入  claude"
+  say "  ★ 先输入  exec zsh  （让当前窗口加载新命令；或者新开一个 Terminal 标签页），再 cd 到项目文件夹，输入  claude"
   say "  第一次运行时 macOS 会问“是否允许控制 Terminal”，点 好 / OK。"
   say "  日常管理：输入  claude-wb  （更新 / 自检 / 开关动画 / 卸载）"
 fi
