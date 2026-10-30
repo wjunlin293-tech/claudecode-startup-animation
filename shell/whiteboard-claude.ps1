@@ -73,12 +73,23 @@ function claude-plain {
 
 # ---------------- claude-wb: update / version / doctor / intro / uninstall ----------------
 function Get-WbInstallInfo {
-    $info = [ordered]@{ repo = 'wjunlin293-tech/claudecode-startup-animation'; ref = 'main'; version = '?' }
+    $info = [ordered]@{ repo = 'wjunlin293-tech/claudecode-startup-animation'; ref = 'main'; channel = ''; version = '?' }
     try {
         $j = Get-Content (Join-Path $Global:WbDir 'install.json') -Raw -ErrorAction Stop | ConvertFrom-Json
-        foreach ($k in @('repo', 'ref', 'version')) { if ($j.$k) { $info[$k] = [string]$j.$k } }
+        foreach ($k in @('repo', 'ref', 'channel', 'version')) { if ($j.$k) { $info[$k] = [string]$j.$k } }
     } catch {}
+    # installs made before releases existed have no channel: "main" meant "newest", anything else was a pinned branch / tag
+    if (-not $info.channel) { $info.channel = $(if ($info.ref -eq 'main') { 'latest' } else { 'pinned' }) }
     return [PSCustomObject]$info
+}
+
+# tag of the newest GitHub Release, or $null (offline, rate limited, no release yet)
+function Get-WbLatestTag([string]$repo) {
+    try {
+        $t = [string](Invoke-RestMethod -TimeoutSec 8 "https://api.github.com/repos/$repo/releases/latest").tag_name
+        if ($t -match '^[A-Za-z0-9._-]+$') { return $t }
+    } catch {}
+    return $null
 }
 
 function claude-wb {
@@ -86,16 +97,24 @@ function claude-wb {
     $info = Get-WbInstallInfo
     switch ($Command.ToLower()) {
         'update' {
-            Write-Host "Updating from $($info.repo) ($($info.ref)) ..."
-            $env:CLAUDE_WB_REPO = $info.repo; $env:CLAUDE_WB_REF = $info.ref
-            try { Invoke-Expression (Invoke-RestMethod "https://raw.githubusercontent.com/$($info.repo)/$($info.ref)/install.ps1") }
+            # latest channel: main's installer picks the newest release itself; pinned: keep following that branch / tag
+            $from = $(if ($info.channel -eq 'latest') { 'main' } else { $info.ref })
+            Write-Host "Updating ($(if ($info.channel -eq 'latest') { 'latest release' } else { 'pinned to ' + $info.ref })) ..."
+            $env:CLAUDE_WB_REPO = $info.repo
+            if ($info.channel -ne 'latest') { $env:CLAUDE_WB_REF = $info.ref }
+            try { Invoke-Expression (Invoke-RestMethod "https://raw.githubusercontent.com/$($info.repo)/$from/install.ps1") }
             catch { Write-Host "更新失败 / update failed: $($_.Exception.Message)" -ForegroundColor Red }
             finally { Remove-Item Env:CLAUDE_WB_REPO, Env:CLAUDE_WB_REF -ErrorAction SilentlyContinue }
         }
         'version' {
-            Write-Host "Claude Whiteboard $($info.version)   ($($info.repo) @ $($info.ref))"
+            Write-Host "Claude Whiteboard $($info.version)   ($($info.repo), $(if ($info.channel -eq 'latest') { 'latest release' } else { 'pinned to ' + $info.ref }))"
             try {
-                $remote = ([string](Invoke-RestMethod -TimeoutSec 5 "https://raw.githubusercontent.com/$($info.repo)/$($info.ref)/VERSION")).Trim()
+                $remote = $null
+                if ($info.channel -eq 'latest') { $tag = Get-WbLatestTag $info.repo; if ($tag) { $remote = $tag.TrimStart('v') } }
+                if (-not $remote) {   # pinned, or no release yet: read VERSION from that ref (main when on the latest channel)
+                    $vref = $(if ($info.channel -eq 'latest') { 'main' } else { $info.ref })
+                    $remote = ([string](Invoke-RestMethod -TimeoutSec 5 "https://raw.githubusercontent.com/$($info.repo)/$vref/VERSION")).Trim()
+                }
                 if ($remote -and $remote -ne $info.version) { Write-Host "有新版本 $remote -> 输入 claude-wb update 更新  (new version available)" -ForegroundColor Yellow }
                 else { Write-Host "已经是最新版 (up to date)" -ForegroundColor Green }
             } catch { Write-Host "(没法联网检查新版本 / could not check for updates)" }

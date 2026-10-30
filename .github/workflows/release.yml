@@ -1,0 +1,27 @@
+name: Release
+
+# Publish a GitHub Release when a version tag is pushed:  git tag v2.0.1 && git push origin v2.0.1
+# The installers (install.ps1 / install.sh) install the newest release, so users never get a half-finished main.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match VERSION
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          if [ "$GITHUB_REF_NAME" != "v$v" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match VERSION $v - bump VERSION first."
+            exit 1
+          fi
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "Claude Whiteboard $GITHUB_REF_NAME" --generate-notes --verify-tag

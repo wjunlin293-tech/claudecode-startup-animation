@@ -126,7 +126,8 @@ if [ "$undo" -eq 0 ]; then
   done
   chmod +x "$wb/tools/"*.sh
   version="$(tr -d '[:space:]' < "$repo/VERSION" 2>/dev/null || true)"
-  printf '{\n  "repo": "%s",\n  "ref": "%s",\n  "version": "%s"\n}\n' "${CLAUDE_WB_REPO:-wjunlin293-tech/claudecode-startup-animation}" "${CLAUDE_WB_REF:-main}" "${version:-?}" > "$wb/install.json"
+  # channel "latest" = `claude-wb update` takes the newest GitHub Release; "pinned" = keeps following ref (a branch / tag)
+  printf '{\n  "repo": "%s",\n  "ref": "%s",\n  "channel": "%s",\n  "version": "%s"\n}\n' "${CLAUDE_WB_REPO:-wjunlin293-tech/claudecode-startup-animation}" "${CLAUDE_WB_REF:-main}" "${CLAUDE_WB_CHANNEL:-latest}" "${version:-?}" > "$wb/install.json"
   say "2/5 launcher scripts copied to $wb"
   if [ -f "$repo/claude/whiteboard.json" ]; then
     mkdir -p "$HOME/.claude/themes"

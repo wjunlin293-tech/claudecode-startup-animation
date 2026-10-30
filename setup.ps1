@@ -62,7 +62,9 @@ if (-not $Undo) {
     }
     $repoId = if ($env:CLAUDE_WB_REPO) { $env:CLAUDE_WB_REPO } else { "wjunlin293-tech/claudecode-startup-animation" }
     $refId  = if ($env:CLAUDE_WB_REF)  { $env:CLAUDE_WB_REF }  else { "main" }
-    [IO.File]::WriteAllText((Join-Path $wbDir "install.json"), ([ordered]@{ repo = $repoId; ref = $refId; version = $version; installedAt = (Get-Date -Format "s") } | ConvertTo-Json), $utf8)
+    # channel "latest" = `claude-wb update` takes the newest GitHub Release; "pinned" = keeps following $refId (a branch / tag)
+    $chanId = if ($env:CLAUDE_WB_CHANNEL) { $env:CLAUDE_WB_CHANNEL } else { "latest" }
+    [IO.File]::WriteAllText((Join-Path $wbDir "install.json"), ([ordered]@{ repo = $repoId; ref = $refId; channel = $chanId; version = $version; installedAt = (Get-Date -Format "s") } | ConvertTo-Json), $utf8)
     $launcherText = "`$Host.UI.RawUI.WindowTitle = `"Claude Code`"`r`n& claude @args`r`n"
     [IO.File]::WriteAllText($launcher, $launcherText, $utf8)
     Say "2/7 背景图、滤镜、启动脚本已放到 $wbDir"

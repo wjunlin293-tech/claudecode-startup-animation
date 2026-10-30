@@ -76,18 +76,34 @@ APPLESCRIPT
 # ---------------- claude-wb: update / version / doctor / intro / uninstall ----------------
 _wb_json() { sed -n "s/.*\"$1\": *\"\([^\"]*\)\".*/\1/p" "$HOME/.whiteboard/install.json" 2>/dev/null | head -1; }
 
+# tag of the newest GitHub Release, or nothing (offline, rate limited, no release yet)
+_wb_latest_tag() { # _wb_latest_tag <owner/name>
+  local t
+  t=$(curl -fsS --max-time 8 "https://api.github.com/repos/$1/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+  case "$t" in ""|*[!A-Za-z0-9._-]*) return 1 ;; esac
+  print -r -- "$t"
+}
+
 claude-wb() {
-  local wb="$HOME/.whiteboard" repo ref ver remote
-  repo=$(_wb_json repo); ref=$(_wb_json ref); ver=$(_wb_json version)
+  local wb="$HOME/.whiteboard" repo ref ver channel remote from tag
+  repo=$(_wb_json repo); ref=$(_wb_json ref); ver=$(_wb_json version); channel=$(_wb_json channel)
   : ${repo:=wjunlin293-tech/claudecode-startup-animation}; : ${ref:=main}; : ${ver:=?}
+  # installs made before releases existed have no channel: "main" meant "newest", anything else was a pinned branch / tag
+  if [[ -z "$channel" ]]; then if [[ "$ref" == main ]]; then channel=latest; else channel=pinned; fi; fi
   case "${1:-help}" in
     update)
-      echo "Updating from $repo ($ref) ..."
-      curl -fsSL "https://raw.githubusercontent.com/$repo/$ref/install.sh" | CLAUDE_WB_REPO="$repo" CLAUDE_WB_REF="$ref" bash
+      # latest channel: main's installer picks the newest release itself; pinned: keep following that branch / tag
+      if [[ "$channel" == latest ]]; then from=main; echo "Updating (latest release) ..."; else from="$ref"; echo "Updating (pinned to $ref) ..."; fi
+      curl -fsSL "https://raw.githubusercontent.com/$repo/$from/install.sh" | CLAUDE_WB_REPO="$repo" CLAUDE_WB_REF="$([[ "$channel" == latest ]] || echo "$ref")" bash
       ;;
     version)
-      echo "Claude Whiteboard $ver   ($repo @ $ref)"
-      remote=$(curl -fsS --max-time 5 "https://raw.githubusercontent.com/$repo/$ref/VERSION" 2>/dev/null | tr -d '[:space:]')
+      if [[ "$channel" == latest ]]; then echo "Claude Whiteboard $ver   ($repo, latest release)"; else echo "Claude Whiteboard $ver   ($repo, pinned to $ref)"; fi
+      remote=""
+      if [[ "$channel" == latest ]]; then tag=$(_wb_latest_tag "$repo") && remote="${tag#v}"; fi
+      if [[ -z "$remote" ]]; then   # pinned, or no release yet: read VERSION from that ref (main when on the latest channel)
+        [[ "$channel" == latest ]] && from=main || from="$ref"
+        remote=$(curl -fsS --max-time 5 "https://raw.githubusercontent.com/$repo/$from/VERSION" 2>/dev/null | tr -d '[:space:]')
+      fi
       if [[ -z "$remote" ]]; then echo "(没法联网检查新版本 / could not check for updates)"
       elif [[ "$remote" != "$ver" ]]; then echo "有新版本 $remote -> 输入 claude-wb update 更新  (new version available)"
       else echo "已经是最新版 (up to date)"; fi
